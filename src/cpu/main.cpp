@@ -105,8 +105,8 @@ int main(){
     cam.look_at = point3(0,0,-1);       // Point the camera looks at
     cam.vup = point3(0,1,0);            // Camera rotation
 
-    cam.defocus_angle = 20;             //Defocusing
-    cam.focus_dist = 0.02;
+    cam.defocus_angle = 10;             //Defocusing
+    cam.focus_dist = 2.0;
 
     auto t = omp_get_wtime();
     cam.render(world);

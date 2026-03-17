@@ -49,7 +49,7 @@ class camera {
                         ray r  = get_ray(i, j);
                         pixel_color += ray_color(r, max_depth, world);
                     }
-                    framebuffer[i + j*image_width] = pixel_color * pixel_sample_scale;
+                    framebuffer[i + j*image_width] = pixel_color * pixel_samples_scale;
                 }
             }
 
@@ -84,9 +84,10 @@ class camera {
                     //write_color(std::cout, pixel_color *pixel_sample_scale);
                 }
             }
+            std::clog<< "\rDone.                 \n";
         }
-        std::clog << "\rDone.                 \n";
-    }
+        
+    
 
     private:
     // Private camera parameters
@@ -166,12 +167,13 @@ class camera {
         vec3 sample_disk(double radius) const {
         // Returns a random point in the unit (radius 0.5) disk centered at the origin.
         return radius * random_on_unit_disk();
-    }
+        }
+        
         point3 defocus_disk_sample() const {
         // Returns a random point in the camera defocus disk.
         auto p = random_on_unit_disk();
         return center + (p[0] * defocus_disk_u) + (p[1] * defocus_disk_v);
-    }
+        }
 
         color ray_color(const ray& r, int depth, const hittable& world) const {
 
