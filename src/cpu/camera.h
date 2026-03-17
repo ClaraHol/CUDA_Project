@@ -3,6 +3,8 @@
 
 #include "hittable.h"
 #include "material.h"
+#include <omp.h>
+#include <vector>
 
 class camera {
     public:
@@ -21,13 +23,54 @@ class camera {
         double focus_dist = 10;             // Distance from camera lookfrom point to plane of perfect focus
       
 
+        void render_parallel(const hittable&  world){
+            /* Render the image */
+
+            initialize();
+            
+            std::vector<color> framebuffer(image_height * image_width);
+            //#pragma omp parallel for schedule(dynamic, 1)
+            for (int j = 0; j < image_height; j++){
+                for (int i = 0; i < image_width; i++){
+                    framebuffer[i + j*image_width] = color(1.0, 0.0, 0.0);
+                }
+            } 
+
+            // Render
+            std::cout << "P3\n" << image_width << ' ' << image_height << "\n255\n"; // Image dimensions
+
+
+            auto t = omp_get_wtime();
+            #pragma omp parallel for schedule(dynamic, 1)
+            for (int j = 0; j < int(image_height); j++){
+                for (int i = 0; i < int(image_width); i++){
+                    color pixel_color(0, 0, 0);                   
+                    for (int k = 0; k < samples_per_pixel; k++){
+                        ray r  = get_ray(i, j);
+                        pixel_color += ray_color(r, max_depth, world);
+                    }
+                    framebuffer[i + j*image_width] = pixel_color * pixel_sample_scale;
+                }
+            }
+
+           for (int j = 0; j < image_height; j++){
+                for (int i = 0; i < image_width; i++){
+                    write_color(std::cout,  framebuffer[i + j*image_width]);
+                }
+           }
+           t = omp_get_wtime() - t; 
+           std::clog << "\rDone.                     \n"; 
+           std::clog << "\rParallel(" << omp_get_max_threads() << ")" << " time:" << t << "\n";
+      
+        }
+
         void render(const hittable&  world){
             /* Render the image */
 
             initialize();
             
             // Render
-            std::cout << "P3\n" << image_width << ' ' << image_height << "\n255\n"; // Image dimensions
+            //std::cout << "P3\n" << image_width << ' ' << image_height << "\n255\n"; // Image dimensions
 
             for (int j = 0; j < image_height; j++){
                 std::clog << "\rScaninglines remaining: " << (image_height - j) << ' ' << std::flush;
@@ -38,7 +81,7 @@ class camera {
                         pixel_color += ray_color(r, max_depth, world); 
 
                     }
-                    write_color(std::cout, pixel_color *pixel_sample_scale);
+                    //write_color(std::cout, pixel_color *pixel_sample_scale);
                 }
             }
             std::clog << "\rDone.                     \n";
@@ -135,10 +178,12 @@ class camera {
                     return attenuation * ray_color(scattered, depth - 1, world);
 
                 vec3 direction = rec.normal + random_unit_vector();
-                return 0.5 * ray_color(ray(rec.p, direction), depth-1,  world);
+                return 0.5 * ray_color(ray(rec.p, direction), depth - 1,  world);
             }
+
             vec3 unit_direction = unit_vector(r.direction());
             auto a = 0.5 * (unit_direction.y() + 1.0);
+            
             return (1.0 - a)*color(1.0, 1.0, 1.0) + a * color(0.5, 0.7, 1.0);
         }
 

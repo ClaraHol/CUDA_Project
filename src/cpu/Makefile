@@ -2,7 +2,8 @@
 CXX = g++
 
 # Compiler flags
-CXXFLAGS = -Wall -g -O3 
+CXXFLAGS = -Wall -g -O3 -fopenmp -march=native
+
 
 # Target executable
 TARGET = main
@@ -24,7 +25,7 @@ $(TARGET): $(OBJS)
 	$(CXX) $(CXXFLAGS) -o $(TARGET) $(OBJS)
 
 # Rule to compile .cpp files into .o files
-%.o: %.cpp
+%.o: %.cpp camera.h
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 # Rule to run the executable

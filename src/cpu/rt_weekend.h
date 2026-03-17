@@ -6,6 +6,8 @@
 #include <limits>
 #include <memory>
 #include <cstdlib>
+#include <cstdint>
+#include <omp.h>
 
 // C++ Std usings
 using std::make_shared;
@@ -21,8 +23,12 @@ inline double degrees_to_radians(double degrees){
 }
 
 inline double random_double(){
-    // Return random uniformely distributed double in interval [0, 1)
-    return std::rand() / (RAND_MAX + 1.0);
+    // Return random uniformely distributed double in interval [0, 1) thread safe version
+    thread_local uint32_t state = 123456789 + omp_get_thread_num();
+    state ^= state << 13;
+    state ^= state >> 17;
+    state ^= state << 5;
+    return (state & 0xFFFFFF) / double(0x1000000);
 }
 
 inline double random_double(double min, double max){

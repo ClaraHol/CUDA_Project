@@ -8,6 +8,7 @@
 #include "sphere.h"
 
 
+
 /*
 int main() {
     // Coverpage from book
@@ -95,17 +96,27 @@ int main(){
     // Set viewport
     cam.aspect_ratio = 16.0/9.0;
     cam.image_width = 400;
-    cam.samples_per_pixel = 100;        // Sampling to make smoother edges
+    cam.samples_per_pixel = 200;        // Sampling to make smoother edges
     cam.max_depth = 50;                 // Maximum recursion depth
     
     // Control camera position
     cam.vfov = 40;                      // Distance from objects
-    cam.look_from = point3(-2, 2, 1);   // Camera position
+    cam.look_from = point3(0, 0, 1);   // Camera position
     cam.look_at = point3(0,0,-1);       // Point the camera looks at
-    cam.vup = point3(0,1,1);            // Camera rotation
+    cam.vup = point3(0,1,0);            // Camera rotation
 
     cam.defocus_angle = 20;             //Defocusing
     cam.focus_dist = 0.02;
 
+    auto t = omp_get_wtime();
     cam.render(world);
+
+    t = omp_get_wtime() - t;
+
+    std::clog << "\rSequential time: " << t << "\n";
+
+
+    cam.render_parallel(world);
+
+
 }
