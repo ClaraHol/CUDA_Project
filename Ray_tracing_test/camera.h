@@ -69,8 +69,8 @@ class camera {
 
             // Compute viewport dimensions 
             auto theta = degrees_to_radians(vfov);
-            auto h = std::tan(theta/2);
-            auto viewport_height = 2.0 * h * focus_dist;
+            auto h = std::tan(theta / 2);
+            auto viewport_height = 2 * h * focus_dist;
             auto viewport_width = viewport_height * (double(image_width)/image_height);
 
             // Calculate the u, v, w, unit basis vectors for the camera coordinate frame.
@@ -87,7 +87,7 @@ class camera {
             pixel_delta_v = viewport_v/image_height;
 
             // Calculate the location of the upper left pixel
-            auto viewport_upper_left = center - focus_dist * w - viewport_u/2 - viewport_v/2;
+            auto viewport_upper_left = center - (focus_dist * w) - viewport_u/2 - viewport_v/2;
             pixel00_loc = viewport_upper_left + 0.5 * (pixel_delta_u + pixel_delta_v);
 
             // Calculate the camera defocus disk basis vectors
@@ -118,8 +118,8 @@ class camera {
         }
         vec3 defocus_disk_sample() const {
             // Returns a random point in the camera defocus disk.
-            vec3 p = random_on_unit_disk();
-            return center + (p[0]*defocus_disk_u) + (p[1] * defocus_disk_v);
+            auto p = random_on_unit_disk();
+            return center + (p[0] * defocus_disk_u) + (p[1] * defocus_disk_v);
 
         }
 

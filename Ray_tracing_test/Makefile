@@ -2,7 +2,7 @@
 CXX = g++
 
 # Compiler flags
-CXXFLAGS = -Wall -g
+CXXFLAGS = -Wall -g -O3 
 
 # Target executable
 TARGET = main
@@ -34,6 +34,6 @@ run: $(TARGET)
 
 # Clean rule to remove generated files
 clean:
-	rm -f $(TARGET) $(OBJS
+	rm -f $(TARGET) $(OBJS)
 
 

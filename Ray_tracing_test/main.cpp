@@ -8,7 +8,7 @@
 #include "sphere.h"
 
 
-
+/*
 int main() {
     // Coverpage from book
     hittable_list world;
@@ -70,16 +70,16 @@ int main() {
 
     cam.render(world);
 }
-/*
+*/
 int main(){
 
     // World
     hittable_list world;
 
-    auto material_ground = make_shared<lambertian>(color(0.5, 0.5, 0.5));
+    auto material_ground = make_shared<metal>(color(0.5, 0.5, 0.5), 0.1);
     auto material_center = make_shared<lambertian>(color(0.1, 0.2, 0.5));
-    auto material_left = make_shared<dieletic>(1.5);
-    auto material_bubble = make_shared<dieletic>(1.00/1.50);
+    auto material_left = make_shared<dielectric>(1.5);
+    auto material_bubble = make_shared<dielectric>(1.00/1.50);
     auto material_right = make_shared<metal>(color(0.8, 0.6, 0.2), 1.0);
 
     world.add(make_shared<sphere>(point3(0, -100.5, -1), 100, material_ground));
@@ -92,19 +92,20 @@ int main(){
 
     camera cam;
 
+    // Set viewport
     cam.aspect_ratio = 16.0/9.0;
     cam.image_width = 400;
-    cam.samples_per_pixel = 100;
-    cam.max_depth = 50;
+    cam.samples_per_pixel = 100;        // Sampling to make smoother edges
+    cam.max_depth = 50;                 // Maximum recursion depth
     
-    cam.vfov = 20;
-    cam.look_from = point3(-2, 2, 1);
-    cam.look_at = point3(0,0,-1);
-    cam.vup = point3(0,1,0);
+    // Control camera position
+    cam.vfov = 40;                      // Distance from objects
+    cam.look_from = point3(-2, 2, 1);   // Camera position
+    cam.look_at = point3(0,0,-1);       // Point the camera looks at
+    cam.vup = point3(0,1,1);            // Camera rotation
 
-    cam.defocus_angle = 10;
-    cam.focus_dist = 0.34;
+    cam.defocus_angle = 20;             //Defocusing
+    cam.focus_dist = 0.02;
 
     cam.render(world);
 }
-*/
