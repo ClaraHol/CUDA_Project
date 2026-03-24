@@ -6,6 +6,11 @@
 #include "hittable_list.h"
 #include "material.h"
 #include "sphere.h"
+#include <string>
+
+#ifdef USE_CUDA
+#include "../cuda/cuda_renderer.h"
+#endif
 
 
 
@@ -72,7 +77,17 @@ int main() {
     cam.render(world);
 }
 */
-int main(){
+int main(int argc, char** argv){
+
+    std::string mode = "all";
+    for (int idx = 1; idx < argc; ++idx) {
+        std::string arg = argv[idx];
+        if (arg.rfind("--mode=", 0) == 0) {
+            mode = arg.substr(7);
+        } else if (arg == "--mode" && idx + 1 < argc) {
+            mode = argv[++idx];
+        }
+    }
 
     // World
     hittable_list world;
@@ -91,7 +106,7 @@ int main(){
 
 
 
-    camera cam;
+    camera cam; 
 
     // Set viewport
     cam.aspect_ratio = 16.0/9.0;
@@ -108,15 +123,34 @@ int main(){
     cam.defocus_angle = 10;             //Defocusing
     cam.focus_dist = 2.0;
 
-    auto t = omp_get_wtime();
-    cam.render(world);
+    if (mode == "all" || mode == "cpu") {
+        auto t = omp_get_wtime();
+        cam.render(world);
+        t = omp_get_wtime() - t;
+        std::clog << "\rSequential time: " << t << "\n";
+    }
 
-    t = omp_get_wtime() - t;
+    if (mode == "all" || mode == "omp") {
+        cam.render_parallel(world);
+    }
 
-    std::clog << "\rSequential time: " << t << "\n";
+    if (mode == "all" || mode == "cuda") {
+#ifdef USE_CUDA
+        double cuda_seconds = 0.0;
+        std::string cuda_error;
+        if (render_cuda_mvp(cam, world, "images/image_cuda.ppm", cuda_seconds, cuda_error)) {
+            std::clog << "CUDA MVP time: " << cuda_seconds << "\n";
+        } else {
+            std::clog << "CUDA MVP failed: " << cuda_error << "\n";
+            return 1;
+        }
+#else
+        std::clog << "CUDA mode requested but binary was built without USE_CUDA.\n";
+        return 1;
+#endif
+    }
 
-
-    cam.render_parallel(world);
+    return 0;
 
 
 }
