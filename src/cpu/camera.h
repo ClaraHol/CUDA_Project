@@ -37,7 +37,7 @@ class camera {
             } 
 
             // Render
-            std::cout << "P3\n" << image_width << ' ' << image_height << "\n255\n"; // Image dimensions
+            //std::cout << "P3\n" << image_width << ' ' << image_height << "\n255\n"; // Image dimensions
 
 
             auto t = omp_get_wtime();
@@ -55,7 +55,7 @@ class camera {
 
            for (int j = 0; j < image_height; j++){
                 for (int i = 0; i < image_width; i++){
-                    write_color(std::cout,  framebuffer[i + j*image_width]);
+                    //write_color(std::cout,  framebuffer[i + j*image_width]);
                 }
            }
            t = omp_get_wtime() - t; 
