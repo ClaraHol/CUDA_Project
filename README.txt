@@ -10,4 +10,4 @@ make cpu (cpu only)
 make cuda (cuda only)
 
 Then run using:
-./build/raytrace_cuda --mode cuda (or --mode cpu or --mode all)
+./build/raytrace_cuda --mode cuda (or --mode cpu / --mode all / default is all)
