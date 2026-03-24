@@ -1,0 +1,10 @@
+/build/
+
+# Local CPU build artifacts
+/src/cpu/*.o
+/src/cpu/main
+/src/cpu/main.exe
+
+# Generic native binaries/artifacts
+*.out
+*.exe
