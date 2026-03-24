@@ -3,6 +3,7 @@
 
 #include "hittable.h"
 #include "material.h"
+#include <fstream>
 #include <omp.h>
 #include <vector>
 
@@ -38,9 +39,14 @@ public:
             }
         }
 
-        // Render
-        std::cout << "P3\n"
-                  << image_width << ' ' << image_height << "\n255\n"; // Image dimensions
+        std::ofstream out("images/image_omp.ppm");
+        if (!out.is_open())
+        {
+            std::clog << "Failed to open images/image_omp.ppm for writing.\n";
+            return;
+        }
+        out << "P3\n"
+            << image_width << ' ' << image_height << "\n255\n";
 
         auto t = omp_get_wtime();
 #pragma omp parallel for schedule(dynamic, 1)
@@ -62,7 +68,7 @@ public:
         {
             for (int i = 0; i < image_width; i++)
             {
-                write_color(std::cout, framebuffer[i + j * image_width]);
+                write_color(out, framebuffer[i + j * image_width]);
             }
         }
         t = omp_get_wtime() - t;
@@ -76,8 +82,14 @@ public:
 
         initialize();
 
-        // Render
-        // std::cout << "P3\n" << image_width << ' ' << image_height << "\n255\n"; // Image dimensions
+        std::ofstream out("images/image_cpu.ppm");
+        if (!out.is_open())
+        {
+            std::clog << "Failed to open images/image_cpu.ppm for writing.\n";
+            return;
+        }
+        out << "P3\n"
+            << image_width << ' ' << image_height << "\n255\n";
 
         for (int j = 0; j < image_height; j++)
         {
@@ -90,7 +102,7 @@ public:
                     ray r = get_ray(i, j);
                     pixel_color += ray_color(r, max_depth, world);
                 }
-                // write_color(std::cout, pixel_color *pixel_sample_scale);
+                write_color(out, pixel_color * pixel_samples_scale);
             }
         }
         std::clog << "\rDone.                 \n";
