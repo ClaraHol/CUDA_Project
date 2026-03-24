@@ -6,196 +6,207 @@
 #include <omp.h>
 #include <vector>
 
-class camera {
-    public:
+class camera
+{
+public:
+    double aspect_ratio = 1.0;  // Ratio between width and height
+    int image_width = 400;      // Image width in pixels
+    int samples_per_pixel = 10; // Count of random samples for each pixel
+    int max_depth = 10;         // Maximum number of recursions in ray_color
 
-        double aspect_ratio = 1.0;          // Ratio between width and height
-        int image_width = 400;              // Image width in pixels
-        int samples_per_pixel = 10;         // Count of random samples for each pixel
-        int max_depth = 10;                 // Maximum number of recursions in ray_color
+    double vfov = 90;                   // Vertical veiw angle
+    point3 look_from = point3(0, 0, 0); // Point camera looks from
+    point3 look_at = point3(0, 0, -1);  // Point camera looks at
+    vec3 vup = point3(0, 1, 0);         // Camera relative up direction
 
-        double vfov = 90;                   // Vertical veiw angle
-        point3 look_from = point3(0, 0, 0); // Point camera looks from
-        point3 look_at = point3(0, 0, -1);  // Point camera looks at
-        vec3 vup = point3(0, 1, 0);       // Camera relative up direction  
-        
-        double defocus_angle = 0;         // Variation angle of rays through each pixel
-        double focus_dist = 10;             // Distance from camera lookfrom point to plane of perfect focus
-      
+    double defocus_angle = 0; // Variation angle of rays through each pixel
+    double focus_dist = 10;   // Distance from camera lookfrom point to plane of perfect focus
 
-        void render_parallel(const hittable&  world){
-            /* Render the image */
-
-            initialize();
-            
-            std::vector<color> framebuffer(image_height * image_width);
-            //#pragma omp parallel for schedule(dynamic, 1)
-            for (int j = 0; j < image_height; j++){
-                for (int i = 0; i < image_width; i++){
-                    framebuffer[i + j*image_width] = color(1.0, 0.0, 0.0);
-                }
-            } 
-
-            // Render
-            //std::cout << "P3\n" << image_width << ' ' << image_height << "\n255\n"; // Image dimensions
-
-
-            auto t = omp_get_wtime();
-            #pragma omp parallel for schedule(dynamic, 1)
-            for (int j = 0; j < int(image_height); j++){
-                for (int i = 0; i < int(image_width); i++){
-                    color pixel_color(0, 0, 0);                   
-                    for (int k = 0; k < samples_per_pixel; k++){
-                        ray r  = get_ray(i, j);
-                        pixel_color += ray_color(r, max_depth, world);
-                    }
-                    framebuffer[i + j*image_width] = pixel_color * pixel_samples_scale;
-                }
-            }
-
-           for (int j = 0; j < image_height; j++){
-                for (int i = 0; i < image_width; i++){
-                    //write_color(std::cout,  framebuffer[i + j*image_width]);
-                }
-           }
-           t = omp_get_wtime() - t; 
-           std::clog << "\rDone.                     \n"; 
-           std::clog << "\rParallel(" << omp_get_max_threads() << ")" << " time:" << t << "\n";
-      
-        }
-
-        void render(const hittable&  world){
+    void render_parallel(const hittable &world)
+    {
         /* Render the image */
 
         initialize();
-            
-            // Render
-            //std::cout << "P3\n" << image_width << ' ' << image_height << "\n255\n"; // Image dimensions
 
-        for (int j = 0; j < image_height; j++){
-            std::clog << "\rScanlines remaining: " << (image_height - j) << ' ' << std::flush;
-            for (int i = 0; i < image_width; i++){
-                color pixel_color(0, 0, 0);
-                for (int sample = 0; sample < samples_per_pixel; sample++){
-                    ray r  = get_ray(i, j);
-                    pixel_color += ray_color(r, max_depth, world); 
-
-                    }
-                    //write_color(std::cout, pixel_color *pixel_sample_scale);
-                }
+        std::vector<color> framebuffer(image_height * image_width);
+        // #pragma omp parallel for schedule(dynamic, 1)
+        for (int j = 0; j < image_height; j++)
+        {
+            for (int i = 0; i < image_width; i++)
+            {
+                framebuffer[i + j * image_width] = color(1.0, 0.0, 0.0);
             }
-            std::clog<< "\rDone.                 \n";
         }
-        
-    
 
-    private:
+        // Render
+        std::cout << "P3\n"
+                  << image_width << ' ' << image_height << "\n255\n"; // Image dimensions
+
+        auto t = omp_get_wtime();
+#pragma omp parallel for schedule(dynamic, 1)
+        for (int j = 0; j < int(image_height); j++)
+        {
+            for (int i = 0; i < int(image_width); i++)
+            {
+                color pixel_color(0, 0, 0);
+                for (int k = 0; k < samples_per_pixel; k++)
+                {
+                    ray r = get_ray(i, j);
+                    pixel_color += ray_color(r, max_depth, world);
+                }
+                framebuffer[i + j * image_width] = pixel_color * pixel_samples_scale;
+            }
+        }
+
+        for (int j = 0; j < image_height; j++)
+        {
+            for (int i = 0; i < image_width; i++)
+            {
+                write_color(std::cout, framebuffer[i + j * image_width]);
+            }
+        }
+        t = omp_get_wtime() - t;
+        std::clog << "\rDone.                     \n";
+        std::clog << "\rParallel(" << omp_get_max_threads() << ")" << " time:" << t << "\n";
+    }
+
+    void render(const hittable &world)
+    {
+        /* Render the image */
+
+        initialize();
+
+        // Render
+        // std::cout << "P3\n" << image_width << ' ' << image_height << "\n255\n"; // Image dimensions
+
+        for (int j = 0; j < image_height; j++)
+        {
+            std::clog << "\rScanlines remaining: " << (image_height - j) << ' ' << std::flush;
+            for (int i = 0; i < image_width; i++)
+            {
+                color pixel_color(0, 0, 0);
+                for (int sample = 0; sample < samples_per_pixel; sample++)
+                {
+                    ray r = get_ray(i, j);
+                    pixel_color += ray_color(r, max_depth, world);
+                }
+                // write_color(std::cout, pixel_color *pixel_sample_scale);
+            }
+        }
+        std::clog << "\rDone.                 \n";
+    }
+
+private:
     // Private camera parameters
-        int image_height;           // Height of the image
-        double pixel_samples_scale;  // Color scale factor for sum of pixel samples
-        point3 center;              // Camera center
-        point3 pixel00_loc;         // Location of pixel 00
-        vec3 pixel_delta_u;         // Offset to pixel to the right
-        vec3 pixel_delta_v;         // Offset to pixel below
-        vec3 u, v, w;               // Camera frame basis vectors
-        vec3 defocus_disk_u;        // Defocus disk horizontal radius
-        vec3 defocus_disk_v;        // Defocus disk vertical radius
+    int image_height;           // Height of the image
+    double pixel_samples_scale; // Color scale factor for sum of pixel samples
+    point3 center;              // Camera center
+    point3 pixel00_loc;         // Location of pixel 00
+    vec3 pixel_delta_u;         // Offset to pixel to the right
+    vec3 pixel_delta_v;         // Offset to pixel below
+    vec3 u, v, w;               // Camera frame basis vectors
+    vec3 defocus_disk_u;        // Defocus disk horizontal radius
+    vec3 defocus_disk_v;        // Defocus disk vertical radius
 
-        void initialize(){
-            /* Initialize the Viewport */
-            
-            // Calculate the image height and ensure that it is atleast 1
-            image_height = int(image_width/aspect_ratio);
-            image_height = (image_height < 1) ? 1 : image_height;
+    void initialize()
+    {
+        /* Initialize the Viewport */
 
-            pixel_samples_scale = 1.0/samples_per_pixel;
+        // Calculate the image height and ensure that it is atleast 1
+        image_height = int(image_width / aspect_ratio);
+        image_height = (image_height < 1) ? 1 : image_height;
 
-            center = look_from;
+        pixel_samples_scale = 1.0 / samples_per_pixel;
 
-            // Compute viewport dimensions 
-            auto theta = degrees_to_radians(vfov);
-            auto h = std::tan(theta / 2);
-            auto viewport_height = 2 * h * focus_dist;
-            auto viewport_width = viewport_height * (double(image_width)/image_height);
+        center = look_from;
 
-            // Calculate the u, v, w, unit basis vectors for the camera coordinate frame.
-            w = unit_vector(look_from-look_at);
-            u = unit_vector(cross(vup, w));
-            v = cross(w, u);
+        // Compute viewport dimensions
+        auto theta = degrees_to_radians(vfov);
+        auto h = std::tan(theta / 2);
+        auto viewport_height = 2 * h * focus_dist;
+        auto viewport_width = viewport_height * (double(image_width) / image_height);
 
-            // Calculate the vectors across the horizontal and down the vertical viewport edges
-            vec3 viewport_u = viewport_width * u;
-            vec3 viewport_v = viewport_height * -v;
+        // Calculate the u, v, w, unit basis vectors for the camera coordinate frame.
+        w = unit_vector(look_from - look_at);
+        u = unit_vector(cross(vup, w));
+        v = cross(w, u);
 
-            // Calculate the horizontal and vertical delta vectors from pixel to pixel
-            pixel_delta_u = viewport_u/image_width;
-            pixel_delta_v = viewport_v/image_height;
+        // Calculate the vectors across the horizontal and down the vertical viewport edges
+        vec3 viewport_u = viewport_width * u;
+        vec3 viewport_v = viewport_height * -v;
 
-            // Calculate the location of the upper left pixel
-            auto viewport_upper_left = center - (focus_dist * w) - viewport_u/2 - viewport_v/2;
-            pixel00_loc = viewport_upper_left + 0.5 * (pixel_delta_u + pixel_delta_v);
+        // Calculate the horizontal and vertical delta vectors from pixel to pixel
+        pixel_delta_u = viewport_u / image_width;
+        pixel_delta_v = viewport_v / image_height;
 
-            // Calculate the camera defocus disk basis vectors
-            auto defocus_radius = focus_dist * std::tan(degrees_to_radians(defocus_angle / 2));
-            defocus_disk_u = u * defocus_radius;
-            defocus_disk_v = v * defocus_radius;
-        }
+        // Calculate the location of the upper left pixel
+        auto viewport_upper_left = center - (focus_dist * w) - viewport_u / 2 - viewport_v / 2;
+        pixel00_loc = viewport_upper_left + 0.5 * (pixel_delta_u + pixel_delta_v);
 
-        ray get_ray(int i, int j) const {
-            /* 
-                Construct a camera ray originating from the defocus disk and directed at a randomly
-                sampled point around the pixel location i, j.
-            */
+        // Calculate the camera defocus disk basis vectors
+        auto defocus_radius = focus_dist * std::tan(degrees_to_radians(defocus_angle / 2));
+        defocus_disk_u = u * defocus_radius;
+        defocus_disk_v = v * defocus_radius;
+    }
 
-            auto offset = sample_square();
-            auto pixel_sample = pixel00_loc
-                        + ((i + offset.x())*pixel_delta_u)
-                        + ((j + offset.y())*pixel_delta_v);
+    ray get_ray(int i, int j) const
+    {
+        /*
+            Construct a camera ray originating from the defocus disk and directed at a randomly
+            sampled point around the pixel location i, j.
+        */
 
-            auto ray_origin = (defocus_angle <= 0) ? center : defocus_disk_sample();
-            auto ray_direction =  pixel_sample - ray_origin;
+        auto offset = sample_square();
+        auto pixel_sample = pixel00_loc + ((i + offset.x()) * pixel_delta_u) + ((j + offset.y()) * pixel_delta_v);
 
-            return ray(ray_origin, ray_direction);
+        auto ray_origin = (defocus_angle <= 0) ? center : defocus_disk_sample();
+        auto ray_direction = pixel_sample - ray_origin;
 
-        }
+        return ray(ray_origin, ray_direction);
+    }
 
-        vec3 sample_square() const {
-            // return vector to a random point in the [-0.5, -0.5]- [0.5, 0.5] unit square
-            return vec3(random_double() - 0.5, random_double() - 0.5, 0);
-        }
+    vec3 sample_square() const
+    {
+        // return vector to a random point in the [-0.5, -0.5]- [0.5, 0.5] unit square
+        return vec3(random_double() - 0.5, random_double() - 0.5, 0);
+    }
 
-        vec3 sample_disk(double radius) const {
+    vec3 sample_disk(double radius) const
+    {
         // Returns a random point in the unit (radius 0.5) disk centered at the origin.
         return radius * random_on_unit_disk();
-        }
-        
-        point3 defocus_disk_sample() const {
+    }
+
+    point3 defocus_disk_sample() const
+    {
         // Returns a random point in the camera defocus disk.
         auto p = random_on_unit_disk();
         return center + (p[0] * defocus_disk_u) + (p[1] * defocus_disk_v);
+    }
+
+    color ray_color(const ray &r, int depth, const hittable &world) const
+    {
+
+        if (depth <= 0)
+            return color(0, 0, 0);
+        hit_record rec;
+
+        if (world.hit(r, interval(0.001, infinity), rec))
+        {
+            ray scattered;
+            color attenuation;
+            if (rec.mat->scatter(r, rec, attenuation, scattered))
+                return attenuation * ray_color(scattered, depth - 1, world);
+
+            vec3 direction = rec.normal + random_unit_vector();
+            return 0.5 * ray_color(ray(rec.p, direction), depth - 1, world);
         }
 
-        color ray_color(const ray& r, int depth, const hittable& world) const {
+        vec3 unit_direction = unit_vector(r.direction());
+        auto a = 0.5 * (unit_direction.y() + 1.0);
 
-            if (depth <= 0) return color(0,0,0); 
-            hit_record rec;
-
-            if (world.hit(r, interval(0.001, infinity), rec)){
-                ray scattered;
-                color attenuation;
-                if (rec.mat -> scatter(r, rec, attenuation, scattered))
-                    return attenuation * ray_color(scattered, depth - 1, world);
-
-                vec3 direction = rec.normal + random_unit_vector();
-                return 0.5 * ray_color(ray(rec.p, direction), depth - 1,  world);
-            }
-
-            vec3 unit_direction = unit_vector(r.direction());
-            auto a = 0.5 * (unit_direction.y() + 1.0);
-            
-            return (1.0 - a)*color(1.0, 1.0, 1.0) + a * color(0.5, 0.7, 1.0);
-        }
-
+        return (1.0 - a) * color(1.0, 1.0, 1.0) + a * color(0.5, 0.7, 1.0);
+    }
 };
 
 #endif
