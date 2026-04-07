@@ -8,3 +8,6 @@
 # Generic native binaries/artifacts
 *.out
 *.exe
+
+# Generated images
+*.ppm
