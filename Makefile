@@ -21,7 +21,7 @@ CPU_CXXFLAGS := $(CPP_STD) $(DBG) $(OPT) $(PARA)
 NVCC_CPUFLAGS := --compiler-options "$(DBG) $(OPT) $(PARA)"
 NVCC_FLAGS := -std=c++17 -arch=$(ARCH) -lineinfo -Xptxas=-v -DUSE_CUDA
 
-.PHONY: all cpu cuda run-cpu run-omp run-cuda clean
+.PHONY: all cpu cuda run-cpu run-omp run-cuda run-all clean
 
 # One-command default for HPC GPU build
 all: cuda
@@ -47,6 +47,9 @@ run-omp: cpu
 
 run-cuda: cuda
 	./$(CUDA_TARGET) --mode cuda
+
+run-all: cuda
+	./$(CUDA_TARGET) --mode all
 
 clean:
 	rm -rf $(BUILD_DIR)
