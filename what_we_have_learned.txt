@@ -1,0 +1,30 @@
+17.3 2026
+The randomization was making the parallel version very slow.
+
+
+# Timings:
+- 810000 pixels with 500 rays pr pixels
+- 405000000 rays in total
+
+
+## Timings using doubles
+Sequential time: 1564.46s  (26.0743333333 min)
+
+Parallel(72) time:138.874s
+Parallel(72) writing time:0.125105s
+
+Paralllel(72) total: 2.31665175 min
+
+Cuda rendering time: 83.6113s
+
+Cuda speedup from baseline: 18.7x
+Cuda speedup from OpenMP: 1.66x
+
+
+ Average Cuda rendering time (10 runs): 83.4229 (Using fast math and doubles instead of floats)
+
+
+ ## Timings using floats
+  Average Cuda rendering time (10 runs): 79.2154 (Using fast math and floats)
+
+

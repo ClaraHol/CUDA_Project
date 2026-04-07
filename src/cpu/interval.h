@@ -5,25 +5,25 @@
 
 class interval{
     public:
-        double min, max;
+        float min, max;
 
         interval() : min(infinity), max(-infinity) {} // Default interval is empty
 
-        interval(double min, double max): min(min), max(max) {}
+        interval(float min, float max): min(min), max(max) {}
 
-        double size() const {
+        float size() const {
             return max - min;
         }
 
-        bool contains(double x) {
+        bool contains(float x) {
             return min <= x && x <= max;
         }
 
-        bool surrounds(double x){
+        bool surrounds(float x){
             return min < x && x < max;
         }
 
-        double clamp(double x) const{
+        float clamp(float x) const{
             if (x < min) return min;
             if (x > max) return max;
             return x;

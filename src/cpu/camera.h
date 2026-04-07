@@ -9,18 +9,18 @@
 class camera {
     public:
 
-        double aspect_ratio = 1.0;          // Ratio between width and height
+        float aspect_ratio = 1.0;          // Ratio between width and height
         int image_width = 400;              // Image width in pixels
         int samples_per_pixel = 10;         // Count of random samples for each pixel
         int max_depth = 10;                 // Maximum number of recursions in ray_color
 
-        double vfov = 90;                   // Vertical veiw angle
+        float vfov = 90;                   // Vertical veiw angle
         point3 look_from = point3(0, 0, 0); // Point camera looks from
         point3 look_at = point3(0, 0, -1);  // Point camera looks at
         vec3 vup = point3(0, 1, 0);       // Camera relative up direction  
         
-        double defocus_angle = 0;         // Variation angle of rays through each pixel
-        double focus_dist = 10;             // Distance from camera lookfrom point to plane of perfect focus
+        float defocus_angle = 0;         // Variation angle of rays through each pixel
+        float focus_dist = 10;             // Distance from camera lookfrom point to plane of perfect focus
       
 
         void render_parallel(const hittable&  world){
@@ -41,7 +41,7 @@ class camera {
 
 
             auto t = omp_get_wtime();
-            #pragma omp parallel for schedule(dynamic, 1)
+            #pragma omp parallel for schedule(dynamic, 4)
             for (int j = 0; j < int(image_height); j++){
                 for (int i = 0; i < int(image_width); i++){
                     color pixel_color(0, 0, 0);                   
@@ -69,8 +69,8 @@ class camera {
 
         initialize();
             
-            // Render
-            //std::cout << "P3\n" << image_width << ' ' << image_height << "\n255\n"; // Image dimensions
+        // Render
+        std::cout << "P3\n" << image_width << ' ' << image_height << "\n255\n"; // Image dimensions
 
         for (int j = 0; j < image_height; j++){
             std::clog << "\rScanlines remaining: " << (image_height - j) << ' ' << std::flush;
@@ -81,7 +81,7 @@ class camera {
                     pixel_color += ray_color(r, max_depth, world); 
 
                     }
-                    //write_color(std::cout, pixel_color *pixel_sample_scale);
+                    write_color(std::cout, pixel_color *pixel_samples_scale);
                 }
             }
             std::clog<< "\rDone.                 \n";
@@ -92,7 +92,7 @@ class camera {
     private:
     // Private camera parameters
         int image_height;           // Height of the image
-        double pixel_samples_scale;  // Color scale factor for sum of pixel samples
+        float pixel_samples_scale;  // Color scale factor for sum of pixel samples
         point3 center;              // Camera center
         point3 pixel00_loc;         // Location of pixel 00
         vec3 pixel_delta_u;         // Offset to pixel to the right
@@ -114,9 +114,9 @@ class camera {
 
             // Compute viewport dimensions 
             auto theta = degrees_to_radians(vfov);
-            auto h = std::tan(theta / 2);
+            auto h = std::tanf(theta / 2);
             auto viewport_height = 2 * h * focus_dist;
-            auto viewport_width = viewport_height * (double(image_width)/image_height);
+            auto viewport_width = viewport_height * (float(image_width)/image_height);
 
             // Calculate the u, v, w, unit basis vectors for the camera coordinate frame.
             w = unit_vector(look_from-look_at);
@@ -136,7 +136,7 @@ class camera {
             pixel00_loc = viewport_upper_left + 0.5 * (pixel_delta_u + pixel_delta_v);
 
             // Calculate the camera defocus disk basis vectors
-            auto defocus_radius = focus_dist * std::tan(degrees_to_radians(defocus_angle / 2));
+            auto defocus_radius = focus_dist * std::tanf(degrees_to_radians(defocus_angle / 2));
             defocus_disk_u = u * defocus_radius;
             defocus_disk_v = v * defocus_radius;
         }
@@ -161,10 +161,10 @@ class camera {
 
         vec3 sample_square() const {
             // return vector to a random point in the [-0.5, -0.5]- [0.5, 0.5] unit square
-            return vec3(random_double() - 0.5, random_double() - 0.5, 0);
+            return vec3(random_float() - 0.5, random_float() - 0.5, 0);
         }
 
-        vec3 sample_disk(double radius) const {
+        vec3 sample_disk(float radius) const {
         // Returns a random point in the unit (radius 0.5) disk centered at the origin.
         return radius * random_on_unit_disk();
         }
