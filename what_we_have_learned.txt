@@ -25,6 +25,10 @@ Cuda speedup from OpenMP: 1.66x
 
 
  ## Timings using floats
-  Average Cuda rendering time (10 runs): 79.2154 (Using fast math and floats)
+
+Sequential time: 2226.3
+Parallel(72) time: 103.629
+
+Average Cuda rendering time (10 runs): 79.2154 (Using fast math and floats)
 
 
