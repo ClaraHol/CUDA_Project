@@ -23,7 +23,7 @@ public:
     double defocus_angle = 0; // Variation angle of rays through each pixel
     double focus_dist = 10;   // Distance from camera lookfrom point to plane of perfect focus
 
-    void render_parallel(const hittable &world)
+    void render_parallel(const hittable &world, const std::string &filename = "images/image_omp.ppm")
     {
         /* Render the image */
 
@@ -39,10 +39,10 @@ public:
             }
         }
 
-        std::ofstream out("images/image_omp.ppm");
+        std::ofstream out(filename);
         if (!out.is_open())
         {
-            std::clog << "Failed to open images/image_omp.ppm for writing.\n";
+            std::clog << "Failed to open " << filename << " for writing.\n";
             return;
         }
         out << "P3\n"
@@ -76,16 +76,16 @@ public:
         std::clog << "\rParallel(" << omp_get_max_threads() << ")" << " time:" << t << "\n";
     }
 
-    void render(const hittable &world)
+    void render(const hittable &world, const std::string &filename = "images/image_cpu.ppm")
     {
         /* Render the image */
 
         initialize();
 
-        std::ofstream out("images/image_cpu.ppm");
+        std::ofstream out(filename);
         if (!out.is_open())
         {
-            std::clog << "Failed to open images/image_cpu.ppm for writing.\n";
+            std::clog << "Failed to open " << filename << " for writing.\n";
             return;
         }
         out << "P3\n"

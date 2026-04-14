@@ -21,7 +21,12 @@ CPU_CXXFLAGS := $(CPP_STD) $(DBG) $(OPT) $(PARA)
 NVCC_CPUFLAGS := --compiler-options "$(DBG) $(OPT) $(PARA)"
 NVCC_FLAGS := -std=c++17 -arch=$(ARCH) -lineinfo -Xptxas=-v -DUSE_CUDA
 
-.PHONY: all cpu cuda run-cpu run-omp run-cuda run-all clean
+# Default values for scene, mode, and samples
+SCENE ?= cover
+MODE ?= cuda
+SAMPLES ?= 10
+
+.PHONY: all cpu cuda clean run
 
 # One-command default for HPC GPU build
 all: cuda
@@ -39,17 +44,32 @@ cuda: $(CUDA_TARGET)
 $(CUDA_TARGET): $(CPU_SRC) $(CUDA_SRC) | $(BUILD_DIR)
 	$(NVCC) $(NVCC_FLAGS) $(NVCC_CPUFLAGS) $(CPU_SRC) $(CUDA_SRC) -o $@
 
-run-cpu: cpu
-	./$(CPU_TARGET) --mode cpu
+# Value-based argument parsing: handles (mode) cpu/omp/cuda/all, (scene) simple/cover, (samples) integer
+# Usage: make run simple cuda 100
+#        make run 50 cover omp
+#        make run cuda                (uses defaults for scene and samples)
+run: cuda
+	@PARSED_SCENE=$(SCENE); \
+	PARSED_MODE=$(MODE); \
+	PARSED_SAMPLES=$(SAMPLES); \
+	for arg in $(filter-out $@,$(MAKECMDGOALS)); do \
+	  case $$arg in \
+	    simple) PARSED_SCENE=simple ;; \
+	    cover) PARSED_SCENE=cover ;; \
+	    cpu|omp|cuda|all) PARSED_MODE=$$arg ;; \
+	    *) PARSED_SAMPLES=$$arg ;; \
+	  esac; \
+	done; \
+	echo "Running: scene $$PARSED_SCENE mode $$PARSED_MODE samples $$PARSED_SAMPLES"; \
+	./$(CUDA_TARGET) scene $$PARSED_SCENE mode $$PARSED_MODE samples $$PARSED_SAMPLES
 
-run-omp: cpu
-	./$(CPU_TARGET) --mode omp
+# Prevent Make from treating parsed arguments as targets
+simple cover cpu omp cuda all:
+	@:
 
-run-cuda: cuda
-	./$(CUDA_TARGET) --mode cuda
-
-run-all: cuda
-	./$(CUDA_TARGET) --mode all
+# Catch-all for numeric arguments (samples)
+%:
+	@:
 
 clean:
 	rm -rf $(BUILD_DIR)

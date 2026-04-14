@@ -7,6 +7,9 @@
 #include "material.h"
 #include "sphere.h"
 #include <string>
+#include <stdexcept>
+
+using namespace std;
 
 #ifdef USE_CUDA
 #include "../cuda/cuda_renderer.h"
@@ -18,8 +21,14 @@ struct Scene
     camera cam;
 };
 
+// Generate output filename based on scene and mode
+string get_output_filename(const string &scene_name, const string &mode)
+{
+    return "images/" + scene_name + "_" + mode + ".ppm";
+};
+
 // Coverpage from book with many spheres of different materials
-Scene setup_coverpage_scene()
+Scene setup_coverpage_scene(int samples)
 {
     hittable_list world;
 
@@ -74,7 +83,7 @@ Scene setup_coverpage_scene()
     camera cam;
     cam.aspect_ratio = 16.0 / 9.0;
     cam.image_width = 1200;
-    cam.samples_per_pixel = 5;
+    cam.samples_per_pixel = samples;
     cam.max_depth = 50;
 
     cam.vfov = 20;
@@ -88,7 +97,7 @@ Scene setup_coverpage_scene()
     return {world, cam};
 }
 
-Scene setup_simple_scene()
+Scene setup_simple_scene(int samples)
 {
     // World
     hittable_list world;
@@ -111,8 +120,8 @@ Scene setup_simple_scene()
     // Set viewport
     cam.aspect_ratio = 16.0 / 9.0;
     cam.image_width = 400;
-    cam.samples_per_pixel = 200; // Sampling to make smoother edges
-    cam.max_depth = 50;          // Maximum recursion depth
+    cam.samples_per_pixel = samples; // Sampling to make smoother edges
+    cam.max_depth = 50;              // Maximum recursion depth
 
     // Control camera position
     cam.vfov = 40;                   // Distance from objects
@@ -128,57 +137,119 @@ Scene setup_simple_scene()
 
 int main(int argc, char **argv)
 {
+    string mode;
+    string scene_name;
+    int samples = 10; // Default samples
 
-    // Parse command-line arguments for mode selection
-    std::string mode = "all";
-    for (int idx = 1; idx < argc; ++idx)
+    // Parse key/value args: scene <cover|simple> mode <cpu|omp|cuda|all> samples <integer>
+    for (int idx = 1; idx < argc; idx += 2)
     {
-        std::string arg = argv[idx];
-        if (arg.rfind("--mode=", 0) == 0)
+        if (idx + 1 >= argc)
         {
-            mode = arg.substr(7);
+            cerr << "Missing value for argument: " << argv[idx] << "\n";
+            cerr << "Usage: ./raytrace scene <cover|simple> mode <cpu|omp|cuda|all> samples <integer>\n";
+            return 1;
         }
-        else if (arg == "--mode" && idx + 1 < argc)
+
+        string key = argv[idx];
+        string value = argv[idx + 1];
+
+        if (key == "scene")
         {
-            mode = argv[++idx];
+            scene_name = value;
+        }
+        else if (key == "mode")
+        {
+            mode = value;
+        }
+        else if (key == "samples")
+        {
+            try
+            {
+                samples = stoi(value);
+                if (samples < 1)
+                {
+                    cerr << "samples must be >= 1\n";
+                    return 1;
+                }
+            }
+            catch (const exception &e)
+            {
+                cerr << "Invalid samples value: " << value << " (must be integer)\n";
+                return 1;
+            }
+        }
+        else
+        {
+            cerr << "Unknown argument key: " << key << "\n";
+            cerr << "Usage: ./raytrace scene <cover|simple> mode <cpu|omp|cuda|all> samples <integer>\n";
+            return 1;
         }
     }
 
-    Scene scene = setup_simple_scene();
+    // Defaults (if args are not passed)
+    if (scene_name.empty())
+    {
+        scene_name = "cover";
+    }
+    if (mode.empty())
+    {
+        mode = "cuda";
+    }
 
-    // select scene from args
-    Scene scene = setup_coverpage_scene();
-    scene.cam.render(scene.world);
+    Scene scene;
 
+    // Scene selection
+    if (scene_name == "cover")
+    {
+        scene = setup_coverpage_scene(samples);
+    }
+    else if (scene_name == "simple")
+    {
+        scene = setup_simple_scene(samples);
+    }
+    else
+    {
+        cerr << "Invalid scene: " << scene_name << " (use cover|simple)\n";
+        return 1;
+    }
+
+    if (mode != "all" && mode != "cpu" && mode != "omp" && mode != "cuda")
+    {
+        cerr << "Invalid mode: " << mode << " (use cpu|omp|cuda|all)\n";
+        return 1;
+    }
+
+    // Mode selection
     if (mode == "all" || mode == "cpu")
     {
         auto t = omp_get_wtime();
-        scene.cam.render(scene.world);
+        scene.cam.render(scene.world, get_output_filename(scene_name, "cpu"));
         t = omp_get_wtime() - t;
-        std::clog << "\rSequential time: " << t << "\n";
+        clog << "\rSequential time: " << t << "\n";
     }
 
     if (mode == "all" || mode == "omp")
     {
-        scene.cam.render_parallel(scene.world);
+        scene.cam.render_parallel(scene.world, get_output_filename(scene_name, "omp"));
     }
 
     if (mode == "all" || mode == "cuda")
     {
 #ifdef USE_CUDA
         double cuda_seconds = 0.0;
-        std::string cuda_error;
-        if (render_cuda_mvp(scene.cam, scene.world, "images/image_cuda.ppm", cuda_seconds, cuda_error))
+        string cuda_error;
+        if (render_cuda_mvp(scene.cam, scene.world, get_output_filename(scene_name, "cuda"), cuda_seconds, cuda_error))
         {
-            std::clog << "CUDA MVP time: " << cuda_seconds << "\n";
+            clog << "CUDA MVP time: " << cuda_seconds << "\n";
         }
         else
         {
-            std::clog << "CUDA MVP failed: " << cuda_error << "\n";
+            clog << "CUDA MVP failed: " << cuda_error << "\n";
             return 1;
         }
 #else
-        std::clog << "CUDA mode requested but binary was built without USE_CUDA.\n";
+        clog << "CUDA mode requested but binary was built without USE_CUDA.\n";
         return 1;
 #endif
     }
