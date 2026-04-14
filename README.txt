@@ -1,7 +1,11 @@
 Usage guide:
 
 If you're on the HPC cluster (gracy), first run:
-module load nvhpc/25.9
+source load_modules.sh
+
+This loads:
+- nvhpc/25.9
+- ffmpeg/7.1.1
 
 Then build using:
 
