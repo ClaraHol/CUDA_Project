@@ -5,7 +5,6 @@ source load_modules.sh
 
 This loads:
 - nvhpc/25.9
-- ffmpeg/7.1.1
 
 Then build using:
 

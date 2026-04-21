@@ -8,9 +8,6 @@
 #include "sphere.h"
 #include <string>
 #include <stdexcept>
-#include <filesystem>
-#include <cstdlib>
-#include <vector>
 
 using namespace std;
 
@@ -23,53 +20,6 @@ struct Scene
     hittable_list world;
     camera cam;
 };
-
-string shell_quote(const string &input)
-{
-    string quoted = "'";
-    for (char c : input)
-    {
-        if (c == '\'')
-        {
-            quoted += "'\\''";
-        }
-        else
-        {
-            quoted += c;
-        }
-    }
-    quoted += "'";
-    return quoted;
-}
-
-void convert_ppm_to_png(const string &ppm_path)
-{
-    namespace fs = std::filesystem;
-
-    fs::path ppm_file(ppm_path);
-    fs::path png_file = ppm_file;
-    png_file.replace_extension(".png");
-
-    string in = shell_quote(ppm_file.string());
-    string out = shell_quote(png_file.string());
-
-    vector<string> commands = {
-        "magick " + in + " " + out,
-        "convert " + in + " " + out,
-        "ffmpeg -y -loglevel error -i " + in + " " + out};
-
-    for (const string &cmd : commands)
-    {
-        if (system(cmd.c_str()) == 0)
-        {
-            clog << "Wrote PNG: " << png_file.string() << "\n";
-            return;
-        }
-    }
-
-    clog << "Could not convert " << ppm_file.string()
-         << " to PNG (no supported converter found: magick, convert, or ffmpeg).\n";
-}
 
 // Generate output filename based on scene and mode
 string get_output_filename(const string &scene_name, const string &mode)
@@ -278,14 +228,12 @@ int main(int argc, char **argv)
         scene.cam.render(scene.world, cpu_output);
         t = omp_get_wtime() - t;
         clog << "\rSequential time: " << t << "\n";
-        convert_ppm_to_png(cpu_output);
     }
 
     if (mode == "all" || mode == "omp")
     {
         string omp_output = get_output_filename(scene_name, "omp");
         scene.cam.render_parallel(scene.world, omp_output);
-        convert_ppm_to_png(omp_output);
     }
 
     if (mode == "all" || mode == "cuda")
@@ -297,7 +245,6 @@ int main(int argc, char **argv)
         if (render_cuda_mvp(scene.cam, scene.world, cuda_output, cuda_seconds, cuda_error))
         {
             clog << "CUDA MVP time: " << cuda_seconds << "\n";
-            convert_ppm_to_png(cuda_output);
         }
         else
         {
