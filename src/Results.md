@@ -1,6 +1,7 @@
 # Benchmark Results
 
 Five runs were recorded for each renderer mode on the compute node.
+(I forgot to note the exact input parameters, so these will need to be redone.)
 
 ## Summary
 
@@ -27,9 +28,3 @@ Five runs were recorded for each renderer mode on the compute node.
 - Run 4: 0.0204215
 - Run 5: 0.0204235
 - Average: 0.020424
-
-## Notes
-
-- CPU was the sequential baseline.
-- OMP was slower than the sequential run in this sample set.
-- CUDA was much faster than both CPU paths in this run.
