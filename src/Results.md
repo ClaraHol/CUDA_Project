@@ -28,3 +28,8 @@ Five runs were recorded for each renderer mode on the compute node.
 - Run 4: 0.0204215
 - Run 5: 0.0204235
 - Average: 0.020424
+
+### Benchmark - cover, 100 samples, from version - https://github.com/ClaraHol/CUDA_Project/releases/tag/initial-version
+cpu - 334.42 seconds
+omp - 27.31 seconds - speed up 12.4x
+cuda - 0.6802 seconds - speed up 491x
