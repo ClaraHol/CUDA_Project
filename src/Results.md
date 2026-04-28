@@ -33,6 +33,15 @@ Five runs were recorded for each renderer mode on the compute node.
 cpu - 334.42 seconds
 omp - 27.31 seconds - speed up 12.4x
 cuda - 0.6802 seconds - speed up 491x
+## 10 samples
+cpu - 34.4226
+## 50 samples
+cpu - 175.889
+
+## Projected time for 500 samples
+cpu - 
+## Projected time for 1000 samples
+
 
 ### Benchmark - cover, 500 samples, maxdepth=2
 cuda - 0.4867 seconds
