@@ -7,8 +7,24 @@
 #include <vector>
 #include "kernels.cuh"
 
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image_write.h"
+
 namespace
 {
+
+    __host__ bool write_color_png(const uchar3 *framebuffer, int num_pixels, int image_width, int image_height, const std::string &output_name)
+    {
+        std::vector<uint8_t> pixels(num_pixels * 3);
+        for (int i = 0; i < num_pixels; i++)
+        {
+            uchar3 c = framebuffer[i];
+            pixels[i * 3 + 0] = c.x;
+            pixels[i * 3 + 1] = c.y;
+            pixels[i * 3 + 2] = c.z;
+        }
+        return stbi_write_png(output_name.c_str(), image_width, image_height, 3, pixels.data(), image_width * 3) == 1;
+    }
 
     bool write_ppm(const std::string &path, int width, int height, const std::vector<uchar3> &pixels)
     {
@@ -177,9 +193,9 @@ bool render_cuda_scene(
         return false;
     }
 
-    if (!write_ppm(output_path, cam.image_width, cam.image_height, h_framebuffer))
+    if (!write_color_png(h_framebuffer.data(), pixel_count, cam.image_width, cam.image_height, output_path))
     {
-        error_message = "Failed to write CUDA output image file.";
+        error_message = "Failed to write CUDA output PNG file.";
         cleanup();
         return false;
     }

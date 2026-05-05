@@ -38,7 +38,7 @@ namespace
 
     std::string get_output_filename(const std::string &scene_name)
     {
-        return std::string("images/") + scene_name + "_cuda.ppm";
+        return std::string("images/") + scene_name + "_cuda.png";
     }
 
     GpuMaterial make_lambertian(const float3 &albedo)
@@ -170,17 +170,27 @@ namespace
         add_sphere(s.spheres, make_vec3(-1.0f, 0.0f, -1.0f), 0.4f, bubble);
         add_sphere(s.spheres, make_vec3(1.0f, 0.0f, -1.0f), 0.5f, right);
 
+        int image_width = 400;
+        float aspect_ratio = 16.0f / 9.0f;
+        int max_depth = 50;
+        float vfov = 40.0f;
+        float3 look_from = make_vec3(0.0f, 0.0f, 1.0f);
+        float3 look_at = make_vec3(0.0f, 0.0f, -1.0f);
+        float3 vup = make_vec3(0.0f, 1.0f, 0.0f);
+        float defocus_angle = 10.0f;
+        float focus_dist = len3(sub3(look_from, look_at));
+
         s.camera = build_camera(
-            400,
-            16.0f / 9.0f,
+            image_width,
+            aspect_ratio,
             samples,
-            50,
-            40.0f,
-            make_vec3(0.0f, 0.0f, 1.0f),
-            make_vec3(0.0f, 0.0f, -1.0f),
-            make_vec3(0.0f, 1.0f, 0.0f),
-            10.0f,
-            2.0f);
+            max_depth,
+            vfov,
+            look_from,
+            look_at,
+            vup,
+            defocus_angle,
+            focus_dist);
 
         return s;
     }

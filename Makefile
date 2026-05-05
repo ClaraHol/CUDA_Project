@@ -46,4 +46,4 @@ run: $(CUDA_TARGET)
 >./$(CUDA_TARGET) $(SCENE) $(SAMPLES)
 
 clean:
->rm -rf $(BUILD_DIR) images/*_cuda.ppm
+>rm -rf $(BUILD_DIR) images/*_cuda.png
