@@ -35,15 +35,30 @@ omp - 27.31 seconds - speed up 12.4x
 cuda - 0.6802 seconds - speed up 491x
 ## 10 samples
 cpu - 34.4226
+cpu - 35.9947
+cpu - 33.4329
+cpu - 34.2932
+avg - 34.5359
 ## 50 samples
 cpu - 175.889
 
 ## Projected time for 500 samples
-cpu - 
+cpu - 1726.8
 ## Projected time for 1000 samples
+cpu - 3453.6
+## 500 samples 
+cuda - 3.35926
+cuda - 3.4615
+cuda - 3.41781
+## 1000 samples
+cuda - 6.89401
+cuda - 6.77574
+cuda - 6.81927
+cuda - 6.86477
 
 
 ### Benchmark - cover, 500 samples, maxdepth=2
 cuda - 0.4867 seconds
 ### Benchmark - cover, 500 samples, maxdepth=2
 cuda - 4.87055 seconds
+
