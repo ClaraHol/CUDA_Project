@@ -1,4 +1,4 @@
-#include "cuda_kernels.cuh"
+#include "kernels.cuh"
 
 #include <math.h>
 

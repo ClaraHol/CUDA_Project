@@ -1,6 +1,6 @@
 #pragma once
 
-#include "cuda_types.cuh"
+#include "types.cuh"
 
 struct GpuCamera
 {

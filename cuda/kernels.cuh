@@ -2,9 +2,9 @@
 
 #include <cuda_runtime.h>
 
-#include "cuda_camera.cuh"
-#include "cuda_rng.cuh"
-#include "cuda_types.cuh"
+#include "camera.cuh"
+#include "rng.cuh"
+#include "types.cuh"
 
 cudaError_t launch_init_rng(
     RngState *d_rng,
