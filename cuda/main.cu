@@ -1,4 +1,4 @@
-#include "renderer.h"
+#include "renderer.cuh"
 
 #include <cmath>
 #include <iostream>

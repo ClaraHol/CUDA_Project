@@ -1,11 +1,10 @@
-#include "renderer.h"
+#include "renderer.cuh"
 
 #include <cuda_runtime.h>
 
 #include <fstream>
 #include <string>
 #include <vector>
-
 #include "kernels.cuh"
 
 namespace
