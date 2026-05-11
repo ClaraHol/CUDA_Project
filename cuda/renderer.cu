@@ -26,30 +26,6 @@ namespace
         return stbi_write_png(output_name.c_str(), image_width, image_height, 3, pixels.data(), image_width * 3) == 1;
     }
 
-    bool write_ppm(const std::string &path, int width, int height, const std::vector<uchar3> &pixels)
-    {
-        std::ofstream out(path, std::ios::binary);
-        if (!out.is_open())
-        {
-            return false;
-        }
-
-        out << "P3\n"
-            << width << " " << height << "\n255\n";
-        for (int j = 0; j < height; ++j)
-        {
-            for (int i = 0; i < width; ++i)
-            {
-                const uchar3 &c = pixels[j * width + i];
-                out << static_cast<int>(c.x) << ' '
-                    << static_cast<int>(c.y) << ' '
-                    << static_cast<int>(c.z) << '\n';
-            }
-        }
-
-        return true;
-    }
-
 } // namespace
 
 bool render_cuda_scene(
