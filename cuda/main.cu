@@ -51,25 +51,25 @@ namespace
         return m;
     }
 
-    GpuMaterial make_metal(const float3 &albedo, float fuzz)
-    {
-        GpuMaterial m{};
-        m.type = MAT_METAL;
-        m.albedo = albedo;
-        m.fuzz = fuzz;
-        m.ref_idx = 1.0f;
-        return m;
-    }
+    // GpuMaterial make_metal(const float3 &albedo, float fuzz)
+    // {
+    //     GpuMaterial m{};
+    //     m.type = MAT_METAL;
+    //     m.albedo = albedo;
+    //     m.fuzz = fuzz;
+    //     m.ref_idx = 1.0f;
+    //     return m;
+    // }
 
-    GpuMaterial make_dielectric(float ref_idx)
-    {
-        GpuMaterial m{};
-        m.type = MAT_DIELECTRIC;
-        m.albedo = make_vec3(1.0f, 1.0f, 1.0f);
-        m.fuzz = 0.0f;
-        m.ref_idx = ref_idx;
-        return m;
-    }
+    // GpuMaterial make_dielectric(float ref_idx)
+    // {
+    //     GpuMaterial m{};
+    //     m.type = MAT_DIELECTRIC;
+    //     m.albedo = make_vec3(1.0f, 1.0f, 1.0f);
+    //     m.fuzz = 0.0f;
+    //     m.ref_idx = ref_idx;
+    //     return m;
+    // }
 
     void add_sphere(std::vector<GpuSphere> &spheres, const float3 &center, float radius, int mat_index)
     {
@@ -150,19 +150,19 @@ namespace
         s.materials.reserve(5);
 
         int ground = static_cast<int>(s.materials.size());
-        s.materials.push_back(make_metal(make_vec3(0.5f, 0.5f, 0.5f), 0.1f));
+        //s.materials.push_back(make_metal(make_vec3(0.5f, 0.5f, 0.5f), 0.1f));
 
         int center = static_cast<int>(s.materials.size());
         s.materials.push_back(make_lambertian(make_vec3(0.1f, 0.2f, 0.5f)));
 
         int left = static_cast<int>(s.materials.size());
-        s.materials.push_back(make_dielectric(1.5f));
+        //s.materials.push_back(make_dielectric(1.5f));
 
         int bubble = static_cast<int>(s.materials.size());
-        s.materials.push_back(make_dielectric(1.0f / 1.5f));
+        //s.materials.push_back(make_dielectric(1.0f / 1.5f));
 
         int right = static_cast<int>(s.materials.size());
-        s.materials.push_back(make_metal(make_vec3(0.8f, 0.6f, 0.2f), 1.0f));
+        //s.materials.push_back(make_metal(make_vec3(0.8f, 0.6f, 0.2f), 1.0f));
 
         add_sphere(s.spheres, make_vec3(0.0f, -100.5f, -1.0f), 100.0f, ground);
         add_sphere(s.spheres, make_vec3(0.0f, 0.0f, -1.2f), 0.5f, center);
