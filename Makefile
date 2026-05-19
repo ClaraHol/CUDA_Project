@@ -36,7 +36,7 @@ ifneq ($(filter run,$(MAKECMDGOALS)),)
     SCENE := cover
   endif
   ifeq ($(SAMPLES),)
-    SAMPLES := 10
+    SAMPLES := 50
   endif
   $(eval $(SCENE):;)
   $(eval $(SAMPLES):;)

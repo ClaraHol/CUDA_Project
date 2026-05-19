@@ -150,19 +150,19 @@ namespace
         s.materials.reserve(5);
 
         int ground = static_cast<int>(s.materials.size());
-        //s.materials.push_back(make_metal(make_vec3(0.5f, 0.5f, 0.5f), 0.1f));
+        // s.materials.push_back(make_metal(make_vec3(0.5f, 0.5f, 0.5f), 0.1f));
 
         int center = static_cast<int>(s.materials.size());
         s.materials.push_back(make_lambertian(make_vec3(0.1f, 0.2f, 0.5f)));
 
         int left = static_cast<int>(s.materials.size());
-        //s.materials.push_back(make_dielectric(1.5f));
+        // s.materials.push_back(make_dielectric(1.5f));
 
         int bubble = static_cast<int>(s.materials.size());
-        //s.materials.push_back(make_dielectric(1.0f / 1.5f));
+        // s.materials.push_back(make_dielectric(1.0f / 1.5f));
 
         int right = static_cast<int>(s.materials.size());
-        //s.materials.push_back(make_metal(make_vec3(0.8f, 0.6f, 0.2f), 1.0f));
+        // s.materials.push_back(make_metal(make_vec3(0.8f, 0.6f, 0.2f), 1.0f));
 
         add_sphere(s.spheres, make_vec3(0.0f, -100.5f, -1.0f), 100.0f, ground);
         add_sphere(s.spheres, make_vec3(0.0f, 0.0f, -1.2f), 0.5f, center);
@@ -200,10 +200,12 @@ namespace
         SceneData s{};
         std::mt19937 rng(1337u);
 
-        int ground = static_cast<int>(s.materials.size());
+        // Determine the next material index before adding the material to the list.
+        int ground_index = static_cast<int>(s.materials.size());
         s.materials.push_back(make_lambertian(make_vec3(0.5f, 0.5f, 0.5f)));
-        add_sphere(s.spheres, make_vec3(0.0f, -1000.0f, 0.0f), 1000.0f, ground);
+        add_sphere(s.spheres, make_vec3(0.0f, -1000.0f, 0.0f), 1000.0f, ground_index);
 
+        // Make 22x22 = 484 small spheres
         for (int a = -11; a < 11; ++a)
         {
             for (int b = -11; b < 11; ++b)
@@ -214,41 +216,51 @@ namespace
                 float3 avoid = make_vec3(4.0f, 0.2f, 0.0f);
                 if (len3(sub3(center, avoid)) <= 0.9f)
                 {
+                    b--;
                     continue;
                 }
 
-                if (choose_mat < 0.8f)
+                if (choose_mat < 1.0f)
                 {
                     int mat = static_cast<int>(s.materials.size());
-                    s.materials.push_back(make_lambertian(mul3(random_color(rng), random_color(rng))));
+                    s.materials.push_back(make_lambertian(mul3(random_color(rng, 0.5f, 1.0f), random_color(rng))));
                     add_sphere(s.spheres, center, 0.2f, mat);
                 }
-                else if (choose_mat < 0.95f)
-                {
-                    int mat = static_cast<int>(s.materials.size());
-                    s.materials.push_back(make_metal(random_color(rng, 0.5f, 1.0f), randf(rng, 0.0f, 0.5f)));
-                    add_sphere(s.spheres, center, 0.2f, mat);
-                }
-                else
-                {
-                    int mat = static_cast<int>(s.materials.size());
-                    s.materials.push_back(make_dielectric(1.5f));
-                    add_sphere(s.spheres, center, 0.2f, mat);
-                }
+                // else if (choose_mat < 0.95f)
+                // {
+                //     int mat = static_cast<int>(s.materials.size());
+                //     s.materials.push_back(make_metal(random_color(rng, 0.5f, 1.0f), randf(rng, 0.0f, 0.5f)));
+                //     add_sphere(s.spheres, center, 0.2f, mat);
+                // }
+                // else
+                // {
+                //     int mat = static_cast<int>(s.materials.size());
+                //     s.materials.push_back(make_dielectric(1.5f));
+                //     add_sphere(s.spheres, center, 0.2f, mat);
+                // }
             }
         }
 
-        int m1 = static_cast<int>(s.materials.size());
-        s.materials.push_back(make_dielectric(1.5f));
-        add_sphere(s.spheres, make_vec3(0.0f, 1.0f, 0.0f), 1.0f, m1);
+        // Make 3 large spheres
+        for (int i = 0; i < 3; ++i)
+        {
+            int new_mat = static_cast<int>(s.materials.size());
+            s.materials.push_back(make_lambertian(mul3(random_color(rng, 0.5f, 1.0f), random_color(rng))));
+            add_sphere(s.spheres, make_vec3(-4.0f + 4 * i, 1.0f, 0.0f), 1.0f, new_mat);
+        }
 
-        int m2 = static_cast<int>(s.materials.size());
-        s.materials.push_back(make_lambertian(make_vec3(0.4f, 0.2f, 0.1f)));
-        add_sphere(s.spheres, make_vec3(-4.0f, 1.0f, 0.0f), 1.0f, m2);
+        std::cout << s.materials.size() << "\n";
+        // int m1 = static_cast<int>(s.materials.size());
+        // s.materials.push_back(make_dielectric(1.5f));
+        // add_sphere(s.spheres, make_vec3(0.0f, 1.0f, 0.0f), 1.0f, m1);
 
-        int m3 = static_cast<int>(s.materials.size());
-        s.materials.push_back(make_metal(make_vec3(0.7f, 0.6f, 0.5f), 0.0f));
-        add_sphere(s.spheres, make_vec3(4.0f, 1.0f, 0.0f), 1.0f, m3);
+        // int m2 = static_cast<int>(s.materials.size());
+        // s.materials.push_back(make_lambertian(mul3(random_color(rng), random_color(rng))));
+        // add_sphere(s.spheres, make_vec3(-4.0f, 1.0f, 0.0f), 1.0f, m2);
+
+        // int m3 = static_cast<int>(s.materials.size());
+        // s.materials.push_back(make_metal(make_vec3(0.7f, 0.6f, 0.5f), 0.0f));
+        // add_sphere(s.spheres, make_vec3(4.0f, 1.0f, 0.0f), 1.0f, m3);
 
         s.camera = build_camera(
             1200,
