@@ -28,3 +28,26 @@ Five runs were recorded for each renderer mode on the compute node.
 - Run 4: 0.0204215
 - Run 5: 0.0204235
 - Average: 0.020424
+
+### Cuda - Cover image, 50 samples
+
+#### Linear search hit detection
+- Run 1: 
+- Run 2: 
+- Run 3: 
+- Run 4: 
+- Run 5: 
+
+#### BVH Stacked-based detection
+- Run 1: 
+- Run 2: 
+- Run 3: 
+- Run 4: 
+- Run 5: 
+
+#### BVH Stackless detection
+- Run 1: 
+- Run 2: 
+- Run 3: 
+- Run 4: 
+- Run 5: 
