@@ -123,7 +123,7 @@ namespace // anonymous namespace - contents only visible in this file.
 
             auto centroid_on_axis = [&](uint32_t idx) -> float
             {
-                const float3 c = spheres_[indices_[idx]].center;
+                const float3 c = spheres_[idx].center;
                 if (axis == 0u)
                     return c.x;
                 if (axis == 1u)
@@ -142,13 +142,15 @@ namespace // anonymous namespace - contents only visible in this file.
                 });
 
             const int left_child = build_node(begin, mid, out);
-            const int right_child = build_node(mid, end, out);
+            build_node(mid, end, out);
+
+            const uint32_t escape = static_cast<uint32_t>(out.nodes.size());
 
             BVHNode inner{};
             inner.aabb_min = bounds.minv;
             inner.aabb_max = bounds.maxv;
             inner.left = static_cast<uint32_t>(left_child);
-            inner.right = static_cast<uint32_t>(right_child);
+            inner.right = escape;
             inner.flags = (axis << 1);
             inner.pad = 0u;
             out.nodes[node_index] = inner;

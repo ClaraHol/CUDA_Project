@@ -249,7 +249,7 @@ namespace
             add_sphere(s.spheres, make_vec3(-4.0f + 4 * i, 1.0f, 0.0f), 1.0f, new_mat);
         }
 
-        std::cout << s.materials.size() << "\n";
+        std::cout << "Number of scene objects: " << s.spheres.size() << "\n";
         // int m1 = static_cast<int>(s.materials.size());
         // s.materials.push_back(make_dielectric(1.5f));
         // add_sphere(s.spheres, make_vec3(0.0f, 1.0f, 0.0f), 1.0f, m1);

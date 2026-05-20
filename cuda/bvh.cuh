@@ -11,8 +11,8 @@ struct BVHNode
     float3 aabb_max;
 
     // Internal node:
-    // left = left child node index
-    // right = right child node index
+    // left = first child node index (preorder next node)
+    // right = escape index (node after this subtree)
     //
     // Leaf node:
     // left = first primitive index in primitive_indices

@@ -118,8 +118,6 @@ namespace
 
     inline __device__ bool hit_scene(const GpuScene &scene, const Ray &r, float t_min, float t_max, Hit &rec)
     {
-
-        // guard
         if (scene.bvh_nodes == nullptr || scene.bvh_node_count == 0 || scene.bvh_primitive_indices == nullptr)
         {
             return false;
@@ -129,22 +127,18 @@ namespace
         bool hit_anything = false;
         float closest = t_max;
 
-        // This stack size
-        constexpr int MAX_STACK = 64;
-        int stack[MAX_STACK];
-        int stack_size = 0;
-        stack[stack_size++] = 0; // root node index
-
-        while (stack_size > 0)
+        uint32_t node_index = 0;
+        while (node_index < static_cast<uint32_t>(scene.bvh_node_count))
         {
-            const BVHNode &node = scene.bvh_nodes[stack[--stack_size]];
+            const BVHNode &node = scene.bvh_nodes[node_index];
+            const bool is_leaf = (node.flags & 1u) != 0u;
 
             if (!hit_aabb(node.aabb_min, node.aabb_max, r, t_min, closest))
             {
+                node_index = is_leaf ? (node_index + 1u) : node.right;
                 continue;
             }
 
-            const bool is_leaf = (node.flags & 1) != 0;
             if (is_leaf)
             {
                 const uint32_t first = node.left;
@@ -159,20 +153,11 @@ namespace
                         rec = tmp;
                     }
                 }
+                node_index += 1u;
             }
             else
             {
-                const int left = static_cast<int>(node.left);
-                const int right = static_cast<int>(node.right);
-
-                if (stack_size + 2 > MAX_STACK)
-                {
-                    // In a production renderer, we would want to handle this more gracefully (e.g. use a larger stack, or switch to a recursive traversal, etc.)
-                    // but for this simple path tracer, we can just give up on the rest of the traversal and accept missing some hits.
-                    break;
-                }
-                stack[stack_size++] = left;
-                stack[stack_size++] = right;
+                node_index = node.left;
             }
         }
 
