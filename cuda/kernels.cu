@@ -1,4 +1,5 @@
 #include "kernels.cuh"
+#include "bvh.cuh"
 
 #include <math.h>
 
@@ -117,17 +118,61 @@ namespace
 
     inline __device__ bool hit_scene(const GpuScene &scene, const Ray &r, float t_min, float t_max, Hit &rec)
     {
+
+        // guard
+        if (scene.bvh_nodes == nullptr || scene.bvh_node_count == 0 || scene.bvh_primitive_indices == nullptr)
+        {
+            return false;
+        }
+
         Hit tmp;
         bool hit_anything = false;
         float closest = t_max;
 
-        for (int i = 0; i < scene.sphere_count; ++i)
+        // This stack size
+        constexpr int MAX_STACK = 64;
+        int stack[MAX_STACK];
+        int stack_size = 0;
+        stack[stack_size++] = 0; // root node index
+
+        while (stack_size > 0)
         {
-            if (hit_sphere(scene.spheres[i], r, t_min, closest, tmp))
+            const BVHNode &node = scene.bvh_nodes[stack[--stack_size]];
+
+            if (!hit_aabb(node.aabb_min, node.aabb_max, r, t_min, closest))
             {
-                hit_anything = true;
-                closest = tmp.t;
-                rec = tmp;
+                continue;
+            }
+
+            const bool is_leaf = (node.flags & 1) != 0;
+            if (is_leaf)
+            {
+                const uint32_t first = node.left;
+                const uint32_t count = node.right;
+                for (uint32_t i = 0; i < count; ++i)
+                {
+                    const uint32_t sphere_index = scene.bvh_primitive_indices[first + i];
+                    if (hit_sphere(scene.spheres[sphere_index], r, t_min, closest, tmp))
+                    {
+                        hit_anything = true;
+                        closest = tmp.t;
+                        rec = tmp;
+                    }
+                }
+            }
+            else
+            {
+                const int left = static_cast<int>(node.left);
+                const int right = static_cast<int>(node.right);
+
+                if (stack_size + 2 > MAX_STACK)
+                {
+                    // In a production renderer, we would want to handle this more gracefully (e.g. use a larger stack, or switch to a recursive traversal, etc.)
+                    // but for this simple path tracer, we can just give up on the rest of the traversal and accept missing some hits.
+                    break;
+                }
+                stack[stack_size++] = left;
+                stack[stack_size++] = right;
             }
         }
 
