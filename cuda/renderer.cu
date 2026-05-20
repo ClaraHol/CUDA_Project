@@ -137,19 +137,49 @@ bool render_cuda_scene(
         return false;
     }
 
-    // BVH
-    // Nodes
-    cudaMalloc(reinterpret_cast<void **>(&d_bvh_nodes), bvh.nodes.size() * sizeof(BVHNode));
-    cudaMemcpy(d_bvh_nodes, bvh.nodes.data(), bvh.nodes.size() * sizeof(BVHNode), cudaMemcpyHostToDevice);
-    // Primitive indices
-    cudaMalloc(reinterpret_cast<void **>(&d_bvh_primitive_indices), bvh.primitive_indices.size() * sizeof(uint32_t));
-    cudaMemcpy(d_bvh_primitive_indices, bvh.primitive_indices.data(), bvh.primitive_indices.size() * sizeof(uint32_t), cudaMemcpyHostToDevice);
+    // BVH - Nodes
+    err = cudaMalloc(reinterpret_cast<void **>(&d_bvh_nodes), bvh.nodes.size() * sizeof(BVHNode));
+    if (err != cudaSuccess)
+    {
+        error_message = cudaGetErrorString(err);
+        cleanup();
+        return false;
+    }
+
+    err = cudaMemcpy(d_bvh_nodes, bvh.nodes.data(), bvh.nodes.size() * sizeof(BVHNode), cudaMemcpyHostToDevice);
+    if (err != cudaSuccess)
+    {
+        error_message = cudaGetErrorString(err);
+        cleanup();
+        return false;
+    }
+
+    // BVH - Primitive indices
+    err = cudaMalloc(reinterpret_cast<void **>(&d_bvh_primitive_indices), bvh.primitive_indices.size() * sizeof(uint32_t));
+    if (err != cudaSuccess)
+    {
+        error_message = cudaGetErrorString(err);
+        cleanup();
+        return false;
+    }
+
+    err = cudaMemcpy(d_bvh_primitive_indices, bvh.primitive_indices.data(), bvh.primitive_indices.size() * sizeof(uint32_t), cudaMemcpyHostToDevice);
+    if (err != cudaSuccess)
+    {
+        error_message = cudaGetErrorString(err);
+        cleanup();
+        return false;
+    }
 
     GpuScene scene{};
     scene.spheres = d_spheres;
     scene.sphere_count = static_cast<int>(spheres.size());
     scene.materials = d_materials;
     scene.material_count = static_cast<int>(materials.size());
+    // BVH
+    scene.bvh_nodes = d_bvh_nodes;
+    scene.bvh_node_count = static_cast<int>(bvh.nodes.size());
+    scene.bvh_primitive_indices = d_bvh_primitive_indices;
 
     err = launch_init_rng(d_rng, cam.image_width, cam.image_height, 1337u, nullptr);
     if (err != cudaSuccess)

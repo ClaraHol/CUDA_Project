@@ -41,6 +41,46 @@ namespace
         }
     }
 
+    // Intuitively, we are checking the parallel planes of each axis and seeing if the ray
+    // intersects the box that those 3 pairs of planes form. We are considered inside the box
+    // if the ray is within each of the 3 intervals at the same time, and exited the box as
+    // soon as we are outside of any one of the intervals.
+    // t_min tracks the latest entry point into the box.
+    // t_max tracks the earliest exit point from the box.
+    // After all the checks, t_min and t_max describe the interval where the ray is inside the box.
+    inline __device__ bool hit_aabb(const float3 &bmin, const float3 &bmax, const Ray &r, float t_min, float t_max)
+    {
+        for (int axis = 0; axis < 3; ++axis)
+        {
+            const float origin = (axis == 0) ? r.origin.x : (axis == 1) ? r.origin.y
+                                                                        : r.origin.z;
+            const float dir = (axis == 0) ? r.dir.x : (axis == 1) ? r.dir.y
+                                                                  : r.dir.z;
+            float minv = (axis == 0) ? bmin.x : (axis == 1) ? bmin.y
+                                                            : bmin.z;
+            float maxv = (axis == 0) ? bmax.x : (axis == 1) ? bmax.y
+                                                            : bmax.z;
+
+            const float inv_dir = 1.0f / dir;
+            float t0 = (minv - origin) * inv_dir;
+            float t1 = (maxv - origin) * inv_dir;
+            if (inv_dir < 0.0f)
+            {
+                float tmp = t0;
+                t0 = t1;
+                t1 = tmp;
+            }
+
+            t_min = fmaxf(t_min, t0);
+            t_max = fminf(t_max, t1);
+            if (t_max <= t_min)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
     inline __device__ bool hit_sphere(const GpuSphere &s, const Ray &r, float t_min, float t_max, Hit &out_hit)
     {
         float3 oc = sub3(s.center, r.origin);

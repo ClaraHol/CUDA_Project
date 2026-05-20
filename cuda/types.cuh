@@ -114,7 +114,6 @@ struct GpuScene
     const BVHNode *bvh_nodes;
     int bvh_node_count;
     const uint32_t *bvh_primitive_indices; // For leaf nodes: indices of primitives (spheres) in the original array
-    bool use_bvh;
 };
 
 struct Ray
