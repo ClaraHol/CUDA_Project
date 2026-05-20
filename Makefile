@@ -14,7 +14,7 @@ CPP_STD := -std=c++17
 
 NVCC_FLAGS := $(CPP_STD) -arch=$(ARCH) -lineinfo -Xptxas=-v -DUSE_CUDA
 
-# Default values for scene and samples (can be overridden by "make run scene samples")
+# Default values for scene and samples.
 SCENE ?= cover
 SAMPLES ?= 10
 
@@ -28,18 +28,29 @@ $(CUDA_TARGET): $(SRC)
 >@mkdir -p $(BUILD_DIR)
 >$(NVCC) $(NVCC_FLAGS) $(OPT) $(DBG) -I cuda -o $(CUDA_TARGET) $(SRC)
 
-# Allow: make run simple 50
+RUN_ARGS := $(filter-out run,$(MAKECMDGOALS))
 ifneq ($(filter run,$(MAKECMDGOALS)),)
-  SCENE := $(word 2,$(MAKECMDGOALS))
-  SAMPLES := $(word 3,$(MAKECMDGOALS))
-  ifeq ($(SCENE),)
-    SCENE := cover
+  ifneq ($(strip $(RUN_ARGS)),)
+    FIRST_ARG := $(word 1,$(RUN_ARGS))
+    SECOND_ARG := $(word 2,$(RUN_ARGS))
+
+    ifeq ($(FIRST_ARG),simple)
+      SCENE := simple
+      ifneq ($(strip $(SECOND_ARG)),)
+        SAMPLES := $(SECOND_ARG)
+      endif
+    else ifeq ($(FIRST_ARG),cover)
+      SCENE := cover
+      ifneq ($(strip $(SECOND_ARG)),)
+        SAMPLES := $(SECOND_ARG)
+      endif
+    else
+      SCENE := cover
+      SAMPLES := $(FIRST_ARG)
+    endif
+
+    $(RUN_ARGS):;
   endif
-  ifeq ($(SAMPLES),)
-    SAMPLES := 50
-  endif
-  $(eval $(SCENE):;)
-  $(eval $(SAMPLES):;)
 endif
 
 run: $(CUDA_TARGET)
