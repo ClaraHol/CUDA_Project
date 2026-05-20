@@ -9,6 +9,7 @@
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
+#include "bvh_builder.cuh"
 
 namespace
 {
@@ -50,12 +51,23 @@ bool render_cuda_scene(
         return false;
     }
 
+    // Build BVH
+    BVHBuildResult bvh = build_bvh_for_spheres(spheres, 4);
+    if (bvh.nodes.empty())
+    {
+        error_message = "BVH build failed.";
+        return false;
+    }
+
     int pixel_count = cam.image_width * cam.image_height;
 
     GpuSphere *d_spheres = nullptr;
     GpuMaterial *d_materials = nullptr;
     RngState *d_rng = nullptr;
     uchar3 *d_framebuffer = nullptr;
+    // BVH
+    BVHNode *d_bvh_nodes = nullptr;
+    uint32_t *d_bvh_primitive_indices = nullptr;
 
     std::vector<uchar3> h_framebuffer(static_cast<size_t>(pixel_count));
 
@@ -69,6 +81,10 @@ bool render_cuda_scene(
             cudaFree(d_materials);
         if (d_spheres)
             cudaFree(d_spheres);
+        if (d_bvh_primitive_indices)
+            cudaFree(d_bvh_primitive_indices);
+        if (d_bvh_nodes)
+            cudaFree(d_bvh_nodes);
     };
 
     cudaError_t err = cudaSuccess;
@@ -120,6 +136,14 @@ bool render_cuda_scene(
         cleanup();
         return false;
     }
+
+    // BVH
+    // Nodes
+    cudaMalloc(reinterpret_cast<void **>(&d_bvh_nodes), bvh.nodes.size() * sizeof(BVHNode));
+    cudaMemcpy(d_bvh_nodes, bvh.nodes.data(), bvh.nodes.size() * sizeof(BVHNode), cudaMemcpyHostToDevice);
+    // Primitive indices
+    cudaMalloc(reinterpret_cast<void **>(&d_bvh_primitive_indices), bvh.primitive_indices.size() * sizeof(uint32_t));
+    cudaMemcpy(d_bvh_primitive_indices, bvh.primitive_indices.data(), bvh.primitive_indices.size() * sizeof(uint32_t), cudaMemcpyHostToDevice);
 
     GpuScene scene{};
     scene.spheres = d_spheres;

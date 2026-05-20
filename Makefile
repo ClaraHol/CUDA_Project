@@ -20,7 +20,7 @@ SAMPLES ?= 10
 
 .PHONY: all run clean
 
-SRC := cuda/main.cu cuda/renderer.cu cuda/kernels.cu
+SRC := cuda/main.cu cuda/renderer.cu cuda/kernels.cu cuda/bvh_builder.cpp
 
 all: $(CUDA_TARGET)
 

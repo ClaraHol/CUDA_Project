@@ -1,7 +1,10 @@
 #pragma once
 
 #include <cuda_runtime.h>
+#include <cstdint>
 #include <cmath>
+
+struct BVHNode;
 
 inline __host__ __device__ float3 make_vec3(float x, float y, float z)
 {
@@ -107,6 +110,11 @@ struct GpuScene
     int sphere_count;
     const GpuMaterial *materials;
     int material_count;
+    // BVH
+    const BVHNode *bvh_nodes;
+    int bvh_node_count;
+    const uint32_t *bvh_primitive_indices; // For leaf nodes: indices of primitives (spheres) in the original array
+    bool use_bvh;
 };
 
 struct Ray
