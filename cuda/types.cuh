@@ -5,6 +5,7 @@
 #include <cuda_runtime.h>
 
 struct BVHNode;
+constexpr float PI = 3.14159265358979323846f;
 
 inline __host__ __device__ float3 make_vec3(float x, float y, float z) {
   return make_float3(x, y, z);
@@ -64,6 +65,29 @@ inline __host__ __device__ float3 refract3(const float3 &uv, const float3 &n,
   float3 r_out_parallel = mul3(n, -sqrtf(fabsf(1.0f - len_sq3(r_out_perp))));
   return add3(r_out_perp, r_out_parallel);
 }
+
+inline __host__ __device__ float3 rotate_vec3(float3 v, float3 axis,
+                                              float angle_deg) {
+  float PI = 3.1415926536;
+  float angle = angle_deg * (PI / 180.0f);
+  float c = cos(angle);
+  float s = sin(angle);
+
+  // normalize axis
+  float len = sqrt(axis.x * axis.x + axis.y * axis.y + axis.z * axis.z);
+  axis.x /= len;
+  axis.y /= len;
+  axis.z /= len;
+
+  // Rodrigues' formula: v*cos + (axis x v)*sin + axis*(axis . v)*(1-cos)
+  float dot = axis.x * v.x + axis.y * v.y + axis.z * v.z;
+  float3 cross = {axis.y * v.z - axis.z * v.y, axis.z * v.x - axis.x * v.z,
+                  axis.x * v.y - axis.y * v.x};
+
+  return make_vec3(v.x * c + cross.x * s + axis.x * dot * (1 - c),
+                   v.y * c + cross.y * s + axis.y * dot * (1 - c),
+                   v.z * c + cross.z * s + axis.z * dot * (1 - c));
+};
 
 enum MaterialType : int {
   MAT_LAMBERTIAN = 0,
