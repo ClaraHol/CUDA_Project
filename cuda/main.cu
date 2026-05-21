@@ -7,6 +7,10 @@
 #include <string>
 #include <vector>
 
+using std::cout;
+using std::floor;
+constexpr float PI = 3.14159265358979323846f;
+
 namespace {
 
 float deg_to_rad(float deg) { return deg * 3.14159265358979323846f / 180.0f; }
@@ -173,64 +177,61 @@ SceneData setup_simple_scene(int samples) {
 SceneData setup_cover_scene(int samples) {
   SceneData s{};
   std::mt19937 rng(1337u);
+  float aspect_ratio = 16.0f / 9.0f;
 
   // Determine the next material index before adding the material to the list.
   int ground_index = static_cast<int>(s.materials.size());
   s.materials.push_back(make_lambertian(make_vec3(0.5f, 0.5f, 0.5f)));
   add_sphere(s.spheres, make_vec3(0.0f, -1000.0f, 0.0f), 1000.0f, ground_index);
 
+  int grid_size = 22;
+
   // Make 22x22 = 484 small spheres
-  for (int a = -11; a < 11; ++a) {
-    for (int b = -11; b < 11; ++b) {
-      for (int c = 0; c < 22; ++c) {
+  for (int a = -floor(grid_size / 2.0f); a < floor(grid_size / 2.0f); ++a) {
+    for (int b = -floor(grid_size / 2.0f); b < floor(grid_size / 2.0f); ++b) {
 
-        // float choose_mat = randf(rng);
-        float3 center =
-            make_vec3(static_cast<float>(a) + 0.9f * randf(rng),
-                      static_cast<float>(c) + 0.9f * randf(rng) + 0.2,
-                      static_cast<float>(b) + 0.9f * randf(rng));
+      // float choose_mat = randf(rng);
+      float3 center = make_vec3(static_cast<float>(a) + 0.9f * randf(rng), 0.2,
+                                static_cast<float>(b) + 0.9f * randf(rng));
 
-        // float3 avoid = make_vec3(4.0f, 0.2f, 0.0f);
-        // if (len3(sub3(center, avoid)) <= 0.9f)
-        // {
-        //     b--;
-        //     continue;
-        // }
-
-        if (true) //(choose_mat < 1.0f)
-        {
-          int mat = static_cast<int>(s.materials.size());
-          s.materials.push_back(make_lambertian(
-              mul3(random_color(rng, 0.5f, 1.0f), random_color(rng))));
-          add_sphere(s.spheres, center, 0.2f, mat);
-        }
-        // else if (choose_mat < 0.95f)
-        // {
-        //     int mat = static_cast<int>(s.materials.size());
-        //     s.materials.push_back(make_metal(random_color(rng, 0.5f, 1.0f),
-        //     randf(rng, 0.0f, 0.5f))); add_sphere(s.spheres, center, 0.2f,
-        //     mat);
-        // }
-        // else
-        // {
-        //     int mat = static_cast<int>(s.materials.size());
-        //     s.materials.push_back(make_dielectric(1.5f));
-        //     add_sphere(s.spheres, center, 0.2f, mat);
-        // }
+      float3 avoid = make_vec3(4.0f, 0.2f, 0.0f);
+      if (len3(sub3(center, avoid)) <= 0.9f) {
+        b--;
+        continue;
       }
+
+      if (true) //(choose_mat < 1.0f)
+      {
+        int mat = static_cast<int>(s.materials.size());
+        s.materials.push_back(make_lambertian(
+            mul3(random_color(rng, 0.5f, 1.0f), random_color(rng))));
+        add_sphere(s.spheres, center, 0.2f, mat);
+      }
+      // else if (choose_mat < 0.95f)
+      // {
+      //     int mat = static_cast<int>(s.materials.size());
+      //     s.materials.push_back(make_metal(random_color(rng, 0.5f, 1.0f),
+      //     randf(rng, 0.0f, 0.5f))); add_sphere(s.spheres, center, 0.2f,
+      //     mat);
+      // }
+      // else
+      // {
+      //     int mat = static_cast<int>(s.materials.size());
+      //     s.materials.push_back(make_dielectric(1.5f));
+      //     add_sphere(s.spheres, center, 0.2f, mat);
+      // }
     }
   }
 
   // Make 3 large spheres
-  // for (int i = 0; i < 3; ++i)
-  // {
-  //     int new_mat = static_cast<int>(s.materials.size());
-  //     s.materials.push_back(make_lambertian(mul3(random_color(rng,
-  //     0.5f, 1.0f), random_color(rng)))); add_sphere(s.spheres,
-  //     make_vec3(-4.0f + 4 * i, 1.0f, 0.0f), 1.0f, new_mat);
-  // }
+  for (int i = 0; i < 3; ++i) {
+    int new_mat = static_cast<int>(s.materials.size());
+    s.materials.push_back(make_lambertian(
+        mul3(random_color(rng, 0.5f, 1.0f), random_color(rng))));
+    add_sphere(s.spheres, make_vec3(-4.0f + 4 * i, 1.0f, 0.0f), 1.0f, new_mat);
+  }
 
-  std::cout << "Number of scene objects: " << s.spheres.size() << "\n";
+  cout << "Number of scene objects: " << s.spheres.size() << "\n";
   // int m1 = static_cast<int>(s.materials.size());
   // s.materials.push_back(make_dielectric(1.5f));
   // add_sphere(s.spheres, make_vec3(0.0f, 1.0f, 0.0f), 1.0f, m1);
@@ -244,9 +245,108 @@ SceneData setup_cover_scene(int samples) {
   // s.materials.push_back(make_metal(make_vec3(0.7f, 0.6f, 0.5f), 0.0f));
   // add_sphere(s.spheres, make_vec3(4.0f, 1.0f, 0.0f), 1.0f, m3);
 
-  s.camera = build_camera(1200, 16.0f / 9.0f, samples, 2, 20.0f,
-                          make_vec3(50.0f, 50.0f, 50.0f), // from
-                          make_vec3(0.0f, 11.0f, 0.0f),   // at
+  // s.camera = build_camera(1200, aspect_ratio, samples, 10, 20.0f,
+  //                         make_vec3(13.0f, 2.0f, 3.0f), // from
+  //                         make_vec3(0.0f, 0.0f, 0.0f), // at
+  //                         make_vec3(0.0f, 1.0f, 0.0f),   // up
+  //                         0.6f, 10.0f);
+
+  s.camera = build_camera(1200, aspect_ratio, samples, 10, 20.0f,
+                          make_vec3(13.0f, 2.0f, 3.0f), // from
+                          make_vec3(0.0f, 0.0f, 0.0f),  // at
+                          make_vec3(0.0f, 1.0f, 0.0f),  // up
+                          0.0f, 10.0f);
+
+  return s;
+}
+
+SceneData setup_spiral_shere(int samples) {
+  SceneData s{};
+  std::mt19937 rng(1337u);
+  float aspect_ratio = 16.0f / 9.0f;
+
+  // Add ground
+  int ground_index = static_cast<int>(s.materials.size());
+  s.materials.push_back(make_lambertian(make_vec3(0.5f, 0.5f, 0.5f)));
+  add_sphere(s.spheres, make_vec3(0.0f, -1000.0f, 0.0f), 1000.0f, ground_index);
+
+  // Create the geometry of the spiral sphere
+  float radius_big = 15.0f; // Height of the arrangement is twice this value.
+  float radius_small = 0.3f;
+  int num_spheres = 2000;
+  int turns = 20;
+  float y_offset = radius_big + radius_small;
+
+  auto speed = [&](float t) {
+    float phi = acos(1.0f - 2.0f * t);
+    float dphi_dt = 2.0f / sqrt(1.0f - pow(1.0f - 2.0f * t, 2.0f));
+    float dtheta_dt = 2.0f * PI * turns;
+    return sqrt(pow(dphi_dt, 2.0f) + pow(sin(phi) * dtheta_dt, 2.0f));
+  };
+
+  auto make_equal_arclength_params = [&](int num_spheres, int turns) {
+    int steps = 10000; // also increase this back to 10000
+    std::vector<float> cumulative(steps + 1, 0.0f);
+
+    // never reach the poles entirely to avoid math complications. Barely
+    // noticable visually if at all.
+    float t_min = 0.01f;
+    float t_max = 0.99f;
+
+    for (int i = 1; i <= steps; ++i) {
+      float t = t_min + (t_max - t_min) * ((float)i / steps);
+      float dt = (t_max - t_min) / steps;
+      cumulative[i] = cumulative[i - 1] + speed(t) * dt;
+    }
+    float total = cumulative[steps];
+
+    std::vector<float> params;
+    params.reserve(num_spheres);
+
+    int j = 0;
+    for (int i = 0; i < num_spheres; ++i) {
+      float target = total * ((float)i / (float)(num_spheres - 1));
+      while (j < steps && cumulative[j + 1] < target) {
+        ++j;
+      }
+      float t_raw = float(j) / steps;
+      params.push_back(t_min +
+                       (t_max - t_min) * t_raw); // remap back to [t_min, t_max]
+    }
+
+    return params;
+  };
+
+  auto params = make_equal_arclength_params(num_spheres, turns);
+
+  // Loop to build the spiral shape
+  for (int i = 0; i < num_spheres; ++i) {
+    float t = params[i];
+    float phi = acos(1.0f - 2.0f * t);
+    float theta = 2.0f * PI * turns * t;
+
+    float x = radius_big * sin(phi) * cos(theta);
+    float y = radius_big * cos(phi) + y_offset;
+    float z = radius_big * sin(phi) * sin(theta);
+
+    float3 center = {x, y, z};
+    center = rotate_vec3(center, make_vec3(0.0f, 0.0f, 1.0f), 45.0f);
+
+    // Define new material index
+    int material = static_cast<int>(s.materials.size());
+    // Define new semi-random color
+    s.materials.push_back(make_lambertian(
+        mul3(random_color(rng, 0.5f, 1.0f), random_color(rng))));
+    // Add sphere to the list
+    add_sphere(s.spheres, center, radius_small, material);
+  }
+
+  cout << "Number of scene objects: " << s.spheres.size() << "\n";
+
+  // Set camera parameters
+  s.camera = build_camera(1200, aspect_ratio, samples, 10, 45.0f,
+                          make_vec3(30.0f, 45.0f, 30.0f), // from
+                          make_vec3(0.0f, 15.0f, 0.0f),   // at
                           make_vec3(0.0f, 1.0f, 0.0f),    // up
                           0.0f, 10.0f);
 
@@ -281,10 +381,17 @@ int main(int argc, char **argv) {
     scene = setup_cover_scene(samples);
   } else if (scene_name == "simple") {
     scene = setup_simple_scene(samples);
+  } else if (scene_name == "spiral") {
+    scene = setup_spiral_shere(samples);
   } else {
-    std::cerr << "Invalid scene: " << scene_name << " (use cover|simple)\n";
+    std::cerr << "Invalid scene: " << scene_name
+              << " (use cover|simple|spiral)\n";
     return 1;
   }
+
+  // Print settings used for this particular run
+  cout << "Scene: " << scene_name << "\n";
+  cout << "Samples per pixel : " << samples << "\n";
 
   double cuda_seconds = 0.0;
   std::string cuda_error;
@@ -296,6 +403,6 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  std::cout << "CUDA render time: " << cuda_seconds << " s\n";
+  cout << "CUDA render time: " << cuda_seconds << " s\n";
   return 0;
 }

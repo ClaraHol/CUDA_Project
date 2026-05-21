@@ -16,7 +16,7 @@ NVCC_FLAGS := $(CPP_STD) -arch=$(ARCH) -lineinfo -Xptxas=-v -DUSE_CUDA
 
 # Default values for scene and samples.
 SCENE ?= cover
-SAMPLES ?= 500
+SAMPLES ?= 50
 
 .PHONY: all run clean
 
@@ -44,9 +44,19 @@ ifneq ($(filter run,$(MAKECMDGOALS)),)
       ifneq ($(strip $(SECOND_ARG)),)
         SAMPLES := $(SECOND_ARG)
       endif
+    else ifeq ($(FIRST_ARG),spiral)
+      SCENE := spiral
+      ifneq ($(strip $(SECOND_ARG)),)
+        SAMPLES := $(SECOND_ARG)
+      endif
     else
-      SCENE := cover
-      SAMPLES := $(FIRST_ARG)
+      SCENE := $(FIRST_ARG)
+      ifneq ($(strip $(SECOND_ARG)),)
+        SAMPLES := $(SECOND_ARG)
+      else
+        SAMPLES := $(FIRST_ARG)
+        SCENE := cover
+      endif
     endif
 
     $(RUN_ARGS):;
