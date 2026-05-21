@@ -9,7 +9,6 @@
 
 using std::cout;
 using std::floor;
-constexpr float PI = 3.14159265358979323846f;
 
 namespace {
 
@@ -326,11 +325,15 @@ SceneData setup_spiral_shere(int samples) {
     float theta = 2.0f * PI * turns * t;
 
     float x = radius_big * sin(phi) * cos(theta);
-    float y = radius_big * cos(phi) + y_offset;
+    float y = radius_big * cos(phi);
     float z = radius_big * sin(phi) * sin(theta);
 
+    // define location of the component sphere
     float3 center = {x, y, z};
+    // apply rotation to the large object
     center = rotate_vec3(center, make_vec3(0.0f, 0.0f, 1.0f), 45.0f);
+    // apply y offset so that the object is not centered around y = 0
+    center.y += y_offset;
 
     // Define new material index
     int material = static_cast<int>(s.materials.size());
