@@ -181,7 +181,7 @@ SceneData setup_cover_scene(int samples) {
   // Determine the next material index before adding the material to the list.
   int ground_index = static_cast<int>(s.materials.size());
   s.materials.push_back(make_lambertian(make_vec3(0.5f, 0.5f, 0.5f)));
-  add_sphere(s.spheres, make_vec3(0.0f, -1000.0f, 0.0f), 1000.0f, ground_index);
+  add_sphere(s.spheres, make_vec3(0.0f, -5000.0f, 0.0f), 5000.0f, ground_index);
 
   int grid_size = 22;
 
@@ -318,6 +318,16 @@ SceneData setup_spiral_shere(int samples) {
 
   auto params = make_equal_arclength_params(num_spheres, turns);
 
+  std::vector<float3> rainbow = {
+      make_vec3(0.918f, 0.047f, 0.047f), // Red
+      make_vec3(1.000f, 0.498f, 0.000f), // Orange
+      make_vec3(1.000f, 0.929f, 0.000f), // Yellow
+      make_vec3(0.133f, 0.694f, 0.298f), // Green
+      make_vec3(0.063f, 0.329f, 0.780f), // Blue
+      make_vec3(0.294f, 0.000f, 0.510f), // Indigo
+      make_vec3(0.580f, 0.000f, 0.827f), // Violet
+  };
+
   // Loop to build the spiral shape
   for (int i = 0; i < num_spheres; ++i) {
     float t = params[i];
@@ -331,15 +341,17 @@ SceneData setup_spiral_shere(int samples) {
     // define location of the component sphere
     float3 center = {x, y, z};
     // apply rotation to the large object
-    center = rotate_vec3(center, make_vec3(0.0f, 0.0f, 1.0f), 45.0f);
+    center = rotate_vec3(center, make_vec3(0.0f, 0.0f, 1.0f), 30.0f);
     // apply y offset so that the object is not centered around y = 0
     center.y += y_offset;
 
     // Define new material index
     int material = static_cast<int>(s.materials.size());
     // Define new semi-random color
+    // s.materials.push_back(make_lambertian(
+    //     mul3(random_color(rng, 0.5f, 1.0f), random_color(rng))));
     s.materials.push_back(make_lambertian(
-        mul3(random_color(rng, 0.5f, 1.0f), random_color(rng))));
+        make_vec3(rainbow[i % 7].x, rainbow[i % 7].y, rainbow[i % 7].z)));
     // Add sphere to the list
     add_sphere(s.spheres, center, radius_small, material);
   }
@@ -348,9 +360,9 @@ SceneData setup_spiral_shere(int samples) {
 
   // Set camera parameters
   s.camera = build_camera(1200, aspect_ratio, samples, 10, 45.0f,
-                          make_vec3(30.0f, 45.0f, 30.0f), // from
-                          make_vec3(0.0f, 15.0f, 0.0f),   // at
-                          make_vec3(0.0f, 1.0f, 0.0f),    // up
+                          make_vec3(-21.5f, 45.0f, 21.5f), // from
+                          make_vec3(0.0f, 15.0f, 0.0f),    // at
+                          make_vec3(0.0f, 1.0f, 0.0f),     // up
                           0.0f, 10.0f);
 
   return s;
