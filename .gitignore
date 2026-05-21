@@ -12,3 +12,4 @@
 # Generated images
 *.ppm
 *.png
+.clang-format

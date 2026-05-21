@@ -16,7 +16,7 @@ NVCC_FLAGS := $(CPP_STD) -arch=$(ARCH) -lineinfo -Xptxas=-v -DUSE_CUDA
 
 # Default values for scene and samples.
 SCENE ?= cover
-SAMPLES ?= 10
+SAMPLES ?= 500
 
 .PHONY: all run clean
 
