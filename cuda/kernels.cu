@@ -5,6 +5,21 @@
 
 namespace {
 
+struct PathState {
+  Ray ray;
+  float3 throughput;
+  float3 radiance;
+  RngState rng;
+  int pixel_index;
+  int depth;
+  int active;
+};
+
+struct PathHit {
+  Hit rec;
+  int hit;
+};
+
 inline __device__ float3 random_in_unit_sphere(RngState &rng) {
   while (true) {
     float3 p = make_vec3(2.0f * rng_next_f32(rng) - 1.0f,
@@ -97,8 +112,8 @@ inline __device__ bool hit_sphere(const GpuSphere &s, const Ray &r, float t_min,
   return true;
 }
 
-inline __device__ bool hit_scene(const GpuScene &scene, const Ray &r,
-                                 float t_min, float t_max, Hit &rec) {
+__noinline__ __device__ bool hit_scene(const GpuScene &scene, const Ray &r,
+                                       float t_min, float t_max, Hit &rec) {
   if (scene.bvh_nodes == nullptr || scene.bvh_node_count == 0 ||
       scene.bvh_primitive_indices == nullptr) {
     return false;
@@ -224,35 +239,6 @@ inline __device__ Ray get_ray(const GpuCamera &cam, int px, int py,
   return r;
 }
 
-inline __device__ float3 ray_color_iterative(const Ray &initial_ray,
-                                             int max_depth,
-                                             const GpuScene &scene,
-                                             RngState &rng) {
-  Ray ray = initial_ray;
-  float3 throughput = make_vec3(1.0f, 1.0f, 1.0f);
-  float3 radiance = make_vec3(0.0f, 0.0f, 0.0f);
-
-  for (int bounce = 0; bounce < max_depth; ++bounce) {
-    Hit rec;
-    if (!hit_scene(scene, ray, 0.001f, 1e30f, rec)) {
-      radiance = add3(radiance, mul3(throughput, sky_color(ray)));
-      break;
-    }
-
-    const GpuMaterial &mat = scene.materials[rec.material_index];
-    float3 attenuation;
-    Ray scattered;
-    if (!scatter(mat, ray, rec, rng, attenuation, scattered)) {
-      break;
-    }
-
-    throughput = mul3(throughput, attenuation);
-    ray = scattered;
-  }
-
-  return radiance;
-}
-
 inline __device__ uchar3 to_rgb8(const float3 &c) {
   float r = sqrtf(fmaxf(c.x, 0.0f));
   float g = sqrtf(fmaxf(c.y, 0.0f));
@@ -283,8 +269,8 @@ __global__ void init_rng_kernel(RngState *rng, int width, int height,
   rng_seed(rng[idx], seed, static_cast<uint32_t>(idx));
 }
 
-__global__ void render_kernel(uchar3 *out_rgb, GpuCamera cam, GpuScene scene,
-                              RngState *rng_states) {
+__global__ void init_paths_kernel(PathState *paths, GpuCamera cam,
+                                  const RngState *rng_states) {
   int x = blockIdx.x * blockDim.x + threadIdx.x;
   int y = blockIdx.y * blockDim.y + threadIdx.y;
 
@@ -293,18 +279,109 @@ __global__ void render_kernel(uchar3 *out_rgb, GpuCamera cam, GpuScene scene,
   }
 
   int idx = y * cam.image_width + x;
-  RngState rng = rng_states[idx];
+  PathState path{};
+  path.rng = rng_states[idx];
+  path.ray = get_ray(cam, x, y, path.rng);
+  path.throughput = make_vec3(1.0f, 1.0f, 1.0f);
+  path.radiance = make_vec3(0.0f, 0.0f, 0.0f);
+  path.pixel_index = idx;
+  path.depth = 0;
+  path.active = 1;
+  paths[idx] = path;
+}
 
-  float3 accum = make_vec3(0.0f, 0.0f, 0.0f);
+__global__ void trace_paths_kernel(PathState *paths, PathHit *hits,
+                                   GpuCamera cam, GpuScene scene) {
+  int x = blockIdx.x * blockDim.x + threadIdx.x;
+  int y = blockIdx.y * blockDim.y + threadIdx.y;
 
-  for (int s = 0; s < cam.samples_per_pixel; ++s) {
-    Ray ray = get_ray(cam, x, y, rng);
-    accum = add3(accum, ray_color_iterative(ray, cam.max_depth, scene, rng));
+  if (x >= cam.image_width || y >= cam.image_height) {
+    return;
   }
 
+  int idx = y * cam.image_width + x;
+  PathState &path = paths[idx];
+  PathHit &hit = hits[idx];
+
+  if (!path.active) {
+    hit.hit = 0;
+    return;
+  }
+
+  Hit rec;
+  if (!hit_scene(scene, path.ray, 0.001f, 1e30f, rec)) {
+    path.radiance = add3(path.radiance,
+                         mul3(path.throughput, sky_color(path.ray)));
+    path.active = 0;
+    hit.hit = 0;
+    return;
+  }
+
+  hit.rec = rec;
+  hit.hit = 1;
+}
+
+__global__ void shade_paths_kernel(PathState *paths, const PathHit *hits,
+                                   GpuCamera cam, GpuScene scene) {
+  int x = blockIdx.x * blockDim.x + threadIdx.x;
+  int y = blockIdx.y * blockDim.y + threadIdx.y;
+
+  if (x >= cam.image_width || y >= cam.image_height) {
+    return;
+  }
+
+  int idx = y * cam.image_width + x;
+  PathState &path = paths[idx];
+  if (!path.active || !hits[idx].hit) {
+    return;
+  }
+
+  const Hit &rec = hits[idx].rec;
+  const GpuMaterial &mat = scene.materials[rec.material_index];
+
+  float3 attenuation;
+  Ray scattered;
+  if (!scatter(mat, path.ray, rec, path.rng, attenuation, scattered)) {
+    path.active = 0;
+    return;
+  }
+
+  path.throughput = mul3(path.throughput, attenuation);
+  path.ray = scattered;
+  path.depth += 1;
+  if (path.depth >= cam.max_depth) {
+    path.active = 0;
+  }
+}
+
+__global__ void accumulate_paths_kernel(const PathState *paths,
+                                        RngState *rng_states,
+                                        float3 *accum, GpuCamera cam) {
+  int x = blockIdx.x * blockDim.x + threadIdx.x;
+  int y = blockIdx.y * blockDim.y + threadIdx.y;
+
+  if (x >= cam.image_width || y >= cam.image_height) {
+    return;
+  }
+
+  int idx = y * cam.image_width + x;
+  const PathState &path = paths[idx];
+  accum[path.pixel_index] = add3(accum[path.pixel_index], path.radiance);
+  rng_states[path.pixel_index] = path.rng;
+}
+
+__global__ void resolve_framebuffer_kernel(uchar3 *out_rgb, const float3 *accum,
+                                           GpuCamera cam) {
+  int x = blockIdx.x * blockDim.x + threadIdx.x;
+  int y = blockIdx.y * blockDim.y + threadIdx.y;
+
+  if (x >= cam.image_width || y >= cam.image_height) {
+    return;
+  }
+
+  int idx = y * cam.image_width + x;
   float inv_spp = 1.0f / static_cast<float>(cam.samples_per_pixel);
-  out_rgb[idx] = to_rgb8(mul3(accum, inv_spp));
-  rng_states[idx] = rng;
+  out_rgb[idx] = to_rgb8(mul3(accum[idx], inv_spp));
 }
 
 cudaError_t launch_init_rng(RngState *d_rng, int image_width, int image_height,
@@ -322,10 +399,99 @@ cudaError_t launch_init_rng(RngState *d_rng, int image_width, int image_height,
 cudaError_t launch_render(uchar3 *d_framebuffer, GpuCamera cam, GpuScene scene,
                           RngState *d_rng, cudaStream_t stream) {
 
+  const int pixel_count = cam.image_width * cam.image_height;
+
+  PathState *d_paths = nullptr;
+  PathHit *d_hits = nullptr;
+  float3 *d_accum = nullptr;
+
+  auto cleanup = [&]() {
+    if (d_accum) {
+      cudaFree(d_accum);
+    }
+    if (d_hits) {
+      cudaFree(d_hits);
+    }
+    if (d_paths) {
+      cudaFree(d_paths);
+    }
+  };
+
+  cudaError_t err = cudaMalloc(reinterpret_cast<void **>(&d_paths),
+                               pixel_count * sizeof(PathState));
+  if (err != cudaSuccess) {
+    cleanup();
+    return err;
+  }
+
+  err = cudaMalloc(reinterpret_cast<void **>(&d_hits),
+                   pixel_count * sizeof(PathHit));
+  if (err != cudaSuccess) {
+    cleanup();
+    return err;
+  }
+
+  err = cudaMalloc(reinterpret_cast<void **>(&d_accum),
+                   pixel_count * sizeof(float3));
+  if (err != cudaSuccess) {
+    cleanup();
+    return err;
+  }
+
+  err = cudaMemsetAsync(d_accum, 0, pixel_count * sizeof(float3), stream);
+  if (err != cudaSuccess) {
+    cleanup();
+    return err;
+  }
+
   dim3 block(16, 16);
   dim3 grid((cam.image_width + block.x - 1) / block.x,
             (cam.image_height + block.y - 1) / block.y);
 
-  render_kernel<<<grid, block, 0, stream>>>(d_framebuffer, cam, scene, d_rng);
-  return cudaGetLastError();
+  for (int sample = 0; sample < cam.samples_per_pixel; ++sample) {
+    init_paths_kernel<<<grid, block, 0, stream>>>(d_paths, cam, d_rng);
+    err = cudaGetLastError();
+    if (err != cudaSuccess) {
+      cleanup();
+      return err;
+    }
+
+    for (int bounce = 0; bounce < cam.max_depth; ++bounce) {
+      trace_paths_kernel<<<grid, block, 0, stream>>>(d_paths, d_hits, cam,
+                                                     scene);
+      err = cudaGetLastError();
+      if (err != cudaSuccess) {
+        cleanup();
+        return err;
+      }
+
+      shade_paths_kernel<<<grid, block, 0, stream>>>(d_paths, d_hits, cam,
+                                                     scene);
+      err = cudaGetLastError();
+      if (err != cudaSuccess) {
+        cleanup();
+        return err;
+      }
+    }
+
+    accumulate_paths_kernel<<<grid, block, 0, stream>>>(d_paths, d_rng,
+                                                        d_accum, cam);
+    err = cudaGetLastError();
+    if (err != cudaSuccess) {
+      cleanup();
+      return err;
+    }
+  }
+
+  resolve_framebuffer_kernel<<<grid, block, 0, stream>>>(d_framebuffer,
+                                                          d_accum, cam);
+  err = cudaGetLastError();
+  if (err != cudaSuccess) {
+    cleanup();
+    return err;
+  }
+
+  err = cudaStreamSynchronize(stream);
+  cleanup();
+  return err;
 }
