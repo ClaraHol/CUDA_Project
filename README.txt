@@ -27,3 +27,11 @@ make run 50 cover omp              # Coverpage scene, OMP, 50 samples
 make run cuda 200                  # Coverpage scene (default), CUDA, 200 samples
 make run simple                    # Simple scene, CUDA, 10 samples (defaults)
 make run                           # Coverpage scene, CUDA, 10 samples (all defaults)
+
+
+-------------------
+For profiling, you might need:
+
+source load_modules.sh
+mkdir -p $HOME/.tmp-ncu
+TMPDIR=$HOME/.tmp-ncu ncu ./build/raytrace
