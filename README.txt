@@ -30,7 +30,16 @@ make run                           # Coverpage scene, CUDA, 10 samples (all defa
 
 
 -------------------
-For profiling, you might need:
+For profiling, you might need to remove a stale lock file before running Nsight Compute:
+
+rm -f /tmp/nsight-compute-lock
+
+Then run ncu to profile
+
+ncu ./build/raytrace
+
+If the lockfile is owned by someone else, you can't delete it. In this case, create a temp directory 
+and use that to run NCU.
 
 source load_modules.sh
 mkdir -p $HOME/.tmp-ncu
