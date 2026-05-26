@@ -191,7 +191,7 @@ SceneData setup_cover_scene(int samples) {
   for (int a = -floor(grid_size / 2.0f); a < floor(grid_size / 2.0f); ++a) {
     for (int b = -floor(grid_size / 2.0f); b < floor(grid_size / 2.0f); ++b) {
 
-      // float choose_mat = randf(rng);
+      float choose_mat = randf(rng); // Keep this in so the colors still match.
       float3 center = make_vec3(static_cast<float>(a) + 0.9f * randf(rng), 0.2,
                                 static_cast<float>(b) + 0.9f * randf(rng));
 
