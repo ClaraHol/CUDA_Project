@@ -177,11 +177,13 @@ SceneData setup_cover_scene(int samples) {
   SceneData s{};
   std::mt19937 rng(1337u);
   float aspect_ratio = 16.0f / 9.0f;
+  int max_depth = 2;
+  float fov = 20.0f;
 
   // Determine the next material index before adding the material to the list.
   int ground_index = static_cast<int>(s.materials.size());
   s.materials.push_back(make_lambertian(make_vec3(0.5f, 0.5f, 0.5f)));
-  add_sphere(s.spheres, make_vec3(0.0f, -5000.0f, 0.0f), 5000.0f, ground_index);
+  add_sphere(s.spheres, make_vec3(0.0f, -1000.0f, 0.0f), 1000.0f, ground_index);
 
   int grid_size = 22;
 
@@ -206,19 +208,6 @@ SceneData setup_cover_scene(int samples) {
             mul3(random_color(rng, 0.5f, 1.0f), random_color(rng))));
         add_sphere(s.spheres, center, 0.2f, mat);
       }
-      // else if (choose_mat < 0.95f)
-      // {
-      //     int mat = static_cast<int>(s.materials.size());
-      //     s.materials.push_back(make_metal(random_color(rng, 0.5f, 1.0f),
-      //     randf(rng, 0.0f, 0.5f))); add_sphere(s.spheres, center, 0.2f,
-      //     mat);
-      // }
-      // else
-      // {
-      //     int mat = static_cast<int>(s.materials.size());
-      //     s.materials.push_back(make_dielectric(1.5f));
-      //     add_sphere(s.spheres, center, 0.2f, mat);
-      // }
     }
   }
 
@@ -231,18 +220,6 @@ SceneData setup_cover_scene(int samples) {
   }
 
   cout << "Number of scene objects: " << s.spheres.size() << "\n";
-  // int m1 = static_cast<int>(s.materials.size());
-  // s.materials.push_back(make_dielectric(1.5f));
-  // add_sphere(s.spheres, make_vec3(0.0f, 1.0f, 0.0f), 1.0f, m1);
-
-  // int m2 = static_cast<int>(s.materials.size());
-  // s.materials.push_back(make_lambertian(mul3(random_color(rng),
-  // random_color(rng)))); add_sphere(s.spheres, make_vec3(-4.0f, 1.0f,
-  // 0.0f), 1.0f, m2);
-
-  // int m3 = static_cast<int>(s.materials.size());
-  // s.materials.push_back(make_metal(make_vec3(0.7f, 0.6f, 0.5f), 0.0f));
-  // add_sphere(s.spheres, make_vec3(4.0f, 1.0f, 0.0f), 1.0f, m3);
 
   // s.camera = build_camera(1200, aspect_ratio, samples, 10, 20.0f,
   //                         make_vec3(13.0f, 2.0f, 3.0f), // from
@@ -250,7 +227,7 @@ SceneData setup_cover_scene(int samples) {
   //                         make_vec3(0.0f, 1.0f, 0.0f),   // up
   //                         0.6f, 10.0f);
 
-  s.camera = build_camera(1200, aspect_ratio, samples, 10, 20.0f,
+  s.camera = build_camera(1200, aspect_ratio, samples, max_depth, fov,
                           make_vec3(13.0f, 2.0f, 3.0f), // from
                           make_vec3(0.0f, 0.0f, 0.0f),  // at
                           make_vec3(0.0f, 1.0f, 0.0f),  // up
