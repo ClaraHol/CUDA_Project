@@ -10,6 +10,7 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "bvh_builder.cuh"
 #include "stb_image_write.h"
+#include "wavefront.cuh"
 
 namespace {
 
@@ -46,184 +47,135 @@ bool render_cuda_scene(const GpuCamera &cam,
     return false;
   }
 
-  // Build BVH
+  // -------------------------------------------------------------------------
+  // Build BVH on the host
+  // -------------------------------------------------------------------------
   BVHBuildResult bvh = build_bvh_for_spheres(spheres, 4);
   if (bvh.nodes.empty()) {
     error_message = "BVH build failed.";
     return false;
   }
 
-  int pixel_count = cam.image_width * cam.image_height;
+  const int pixel_count = cam.image_width * cam.image_height;
 
+  // -------------------------------------------------------------------------
+  // Device allocations
+  // -------------------------------------------------------------------------
   GpuSphere *d_spheres = nullptr;
   GpuMaterial *d_materials = nullptr;
-  RngState *d_rng = nullptr;
   uchar3 *d_framebuffer = nullptr;
-  // BVH
   BVHNode *d_bvh_nodes = nullptr;
   uint32_t *d_bvh_primitive_indices = nullptr;
 
   std::vector<uchar3> h_framebuffer(static_cast<size_t>(pixel_count));
 
   auto cleanup = [&]() {
-    if (d_framebuffer)
-      cudaFree(d_framebuffer);
-    if (d_rng)
-      cudaFree(d_rng);
-    if (d_materials)
-      cudaFree(d_materials);
-    if (d_spheres)
-      cudaFree(d_spheres);
-    if (d_bvh_primitive_indices)
-      cudaFree(d_bvh_primitive_indices);
-    if (d_bvh_nodes)
-      cudaFree(d_bvh_nodes);
+    cudaFree(d_framebuffer);
+    cudaFree(d_materials);
+    cudaFree(d_spheres);
+    cudaFree(d_bvh_primitive_indices);
+    cudaFree(d_bvh_nodes);
   };
 
   cudaError_t err = cudaSuccess;
 
-  err = cudaMalloc(reinterpret_cast<void **>(&d_spheres),
-                   spheres.size() * sizeof(GpuSphere));
-  if (err != cudaSuccess) {
-    error_message = cudaGetErrorString(err);
-    cleanup();
-    return false;
-  }
+#define CUDA_CHECK(call)                                                       \
+  do {                                                                         \
+    err = (call);                                                              \
+    if (err != cudaSuccess) {                                                  \
+      error_message = cudaGetErrorString(err);                                 \
+      cleanup();                                                               \
+      return false;                                                            \
+    }                                                                          \
+  } while (0)
 
-  err = cudaMalloc(reinterpret_cast<void **>(&d_materials),
-                   materials.size() * sizeof(GpuMaterial));
-  if (err != cudaSuccess) {
-    error_message = cudaGetErrorString(err);
-    cleanup();
-    return false;
-  }
+  CUDA_CHECK(cudaMalloc(&d_spheres, spheres.size() * sizeof(GpuSphere)));
+  CUDA_CHECK(cudaMalloc(&d_materials, materials.size() * sizeof(GpuMaterial)));
+  CUDA_CHECK(cudaMalloc(&d_framebuffer, pixel_count * sizeof(uchar3)));
+  CUDA_CHECK(cudaMalloc(&d_bvh_nodes, bvh.nodes.size() * sizeof(BVHNode)));
+  CUDA_CHECK(cudaMalloc(&d_bvh_primitive_indices,
+                        bvh.primitive_indices.size() * sizeof(uint32_t)));
 
-  err = cudaMalloc(reinterpret_cast<void **>(&d_rng),
-                   pixel_count * sizeof(RngState));
-  if (err != cudaSuccess) {
-    error_message = cudaGetErrorString(err);
-    cleanup();
-    return false;
-  }
-
-  err = cudaMalloc(reinterpret_cast<void **>(&d_framebuffer),
-                   pixel_count * sizeof(uchar3));
-  if (err != cudaSuccess) {
-    error_message = cudaGetErrorString(err);
-    cleanup();
-    return false;
-  }
-
-  err = cudaMemcpy(d_spheres, spheres.data(),
-                   spheres.size() * sizeof(GpuSphere), cudaMemcpyHostToDevice);
-  if (err != cudaSuccess) {
-    error_message = cudaGetErrorString(err);
-    cleanup();
-    return false;
-  }
-
-  err = cudaMemcpy(d_materials, materials.data(),
-                   materials.size() * sizeof(GpuMaterial),
-                   cudaMemcpyHostToDevice);
-  if (err != cudaSuccess) {
-    error_message = cudaGetErrorString(err);
-    cleanup();
-    return false;
-  }
-
-  // BVH - Nodes
-  err = cudaMalloc(reinterpret_cast<void **>(&d_bvh_nodes),
-                   bvh.nodes.size() * sizeof(BVHNode));
-  if (err != cudaSuccess) {
-    error_message = cudaGetErrorString(err);
-    cleanup();
-    return false;
-  }
-
-  err = cudaMemcpy(d_bvh_nodes, bvh.nodes.data(),
-                   bvh.nodes.size() * sizeof(BVHNode), cudaMemcpyHostToDevice);
-  if (err != cudaSuccess) {
-    error_message = cudaGetErrorString(err);
-    cleanup();
-    return false;
-  }
-
-  // BVH - Primitive indices
-  err = cudaMalloc(reinterpret_cast<void **>(&d_bvh_primitive_indices),
-                   bvh.primitive_indices.size() * sizeof(uint32_t));
-  if (err != cudaSuccess) {
-    error_message = cudaGetErrorString(err);
-    cleanup();
-    return false;
-  }
-
-  err = cudaMemcpy(d_bvh_primitive_indices, bvh.primitive_indices.data(),
-                   bvh.primitive_indices.size() * sizeof(uint32_t),
-                   cudaMemcpyHostToDevice);
-  if (err != cudaSuccess) {
-    error_message = cudaGetErrorString(err);
-    cleanup();
-    return false;
-  }
+  CUDA_CHECK(cudaMemcpy(d_spheres, spheres.data(),
+                        spheres.size() * sizeof(GpuSphere),
+                        cudaMemcpyHostToDevice));
+  CUDA_CHECK(cudaMemcpy(d_materials, materials.data(),
+                        materials.size() * sizeof(GpuMaterial),
+                        cudaMemcpyHostToDevice));
+  CUDA_CHECK(cudaMemcpy(d_bvh_nodes, bvh.nodes.data(),
+                        bvh.nodes.size() * sizeof(BVHNode),
+                        cudaMemcpyHostToDevice));
+  CUDA_CHECK(cudaMemcpy(d_bvh_primitive_indices, bvh.primitive_indices.data(),
+                        bvh.primitive_indices.size() * sizeof(uint32_t),
+                        cudaMemcpyHostToDevice));
 
   GpuScene scene{};
   scene.spheres = d_spheres;
   scene.sphere_count = static_cast<int>(spheres.size());
   scene.materials = d_materials;
   scene.material_count = static_cast<int>(materials.size());
-  // BVH
   scene.bvh_nodes = d_bvh_nodes;
   scene.bvh_node_count = static_cast<int>(bvh.nodes.size());
   scene.bvh_primitive_indices = d_bvh_primitive_indices;
 
-  err =
-      launch_init_rng(d_rng, cam.image_width, cam.image_height, 1337u, nullptr);
+  // -------------------------------------------------------------------------
+  // Wavefront buffers
+  // -------------------------------------------------------------------------
+  WavefrontBuffers wf{};
+  err = allocate_wavefront_buffers(wf, cam.image_width, cam.image_height,
+                                   cam.samples_per_pixel);
   if (err != cudaSuccess) {
     error_message = cudaGetErrorString(err);
+    free_wavefront_buffers(wf);
     cleanup();
     return false;
   }
 
-  cudaEvent_t start_event{};
-  cudaEvent_t stop_event{};
-  cudaEventCreate(&start_event);
-  cudaEventCreate(&stop_event);
+  // -------------------------------------------------------------------------
+  // Render
+  // -------------------------------------------------------------------------
+  cudaEvent_t ev_start{}, ev_stop{};
+  cudaEventCreate(&ev_start);
+  cudaEventCreate(&ev_stop);
 
-  cudaEventRecord(start_event);
-  err = launch_render(d_framebuffer, cam, scene, d_rng, nullptr);
-  if (err != cudaSuccess) {
-    error_message = cudaGetErrorString(err);
-    cudaEventDestroy(start_event);
-    cudaEventDestroy(stop_event);
-    cleanup();
-    return false;
+  cudaEventRecord(ev_start);
+
+  // 1. Generate primary rays, seed RNG, zero accumulator.
+  CUDA_CHECK(launch_wavefront_init(wf, cam, nullptr));
+
+  // 2. Iterate bounces.
+  for (int bounce = 0; bounce < cam.max_depth; ++bounce) {
+    CUDA_CHECK(launch_wavefront_bounce(wf, scene, nullptr));
   }
 
-  cudaEventRecord(stop_event);
-  cudaEventSynchronize(stop_event);
+  // 3. Resolve accumulator → RGB framebuffer.
+  CUDA_CHECK(launch_wavefront_finalize(wf, d_framebuffer, cam, nullptr));
+
+  cudaEventRecord(ev_stop);
+  cudaEventSynchronize(ev_stop);
 
   float ms = 0.0f;
-  cudaEventElapsedTime(&ms, start_event, stop_event);
+  cudaEventElapsedTime(&ms, ev_start, ev_stop);
   elapsed_seconds = static_cast<double>(ms) / 1000.0;
 
-  cudaEventDestroy(start_event);
-  cudaEventDestroy(stop_event);
+  cudaEventDestroy(ev_start);
+  cudaEventDestroy(ev_stop);
 
-  err = cudaMemcpy(h_framebuffer.data(), d_framebuffer,
-                   pixel_count * sizeof(uchar3), cudaMemcpyDeviceToHost);
-  if (err != cudaSuccess) {
-    error_message = cudaGetErrorString(err);
-    cleanup();
-    return false;
-  }
+  // -------------------------------------------------------------------------
+  // Readback & write PNG
+  // -------------------------------------------------------------------------
+  CUDA_CHECK(cudaMemcpy(h_framebuffer.data(), d_framebuffer,
+                        pixel_count * sizeof(uchar3), cudaMemcpyDeviceToHost));
+
+  free_wavefront_buffers(wf);
+  cleanup();
 
   if (!write_color_png(h_framebuffer.data(), pixel_count, cam.image_width,
                        cam.image_height, output_path)) {
-    error_message = "Failed to write CUDA output PNG file.";
-    cleanup();
+    error_message = "Failed to write output PNG.";
     return false;
   }
 
-  cleanup();
+#undef CUDA_CHECK
   return true;
 }
