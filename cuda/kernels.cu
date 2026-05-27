@@ -5,63 +5,84 @@
 
 namespace {
 
-inline __device__ float3 random_in_unit_sphere(RngState &rng) {
-  while (true) {
-    float3 p = make_vec3(2.0f * rng_next_f32(rng) - 1.0f,
-                         2.0f * rng_next_f32(rng) - 1.0f,
-                         2.0f * rng_next_f32(rng) - 1.0f);
-    float lsq = len_sq3(p);
-    if (lsq > 1e-8f && lsq <= 1.0f) {
-      return p;
-    }
-  }
-}
+// ---------------------------------------------------------------------------
+// RNG helpers
+// ---------------------------------------------------------------------------
 
+// Direct spherical sampling — no rejection loop, unit length by construction.
+// Samples uniformly on the unit sphere via the analytic parameterisation:
+//   cos_theta uniform in [-1,1], phi uniform in [0, 2pi].
 inline __device__ float3 random_unit_vector(RngState &rng) {
-  return unit3(random_in_unit_sphere(rng));
+  // cos_theta in [-1, 1]
+  float cos_theta = 2.0f * rng_next_f32(rng) - 1.0f;
+  float sin_theta = sqrtf(fmaxf(0.0f, 1.0f - cos_theta * cos_theta));
+  float phi = 2.0f * PI * rng_next_f32(rng);
+  float sin_phi, cos_phi;
+  sincosf(phi, &sin_phi, &cos_phi);
+  return make_vec3(sin_theta * cos_phi, sin_theta * sin_phi, cos_theta);
 }
 
-inline __device__ float3 random_in_unit_disk(RngState &rng) {
-  while (true) {
-    float3 p = make_vec3(2.0f * rng_next_f32(rng) - 1.0f,
-                         2.0f * rng_next_f32(rng) - 1.0f, 0.0f);
-    if (len_sq3(p) < 1.0f) {
-      return p;
-    }
-  }
+// Concentric disk sampling — single pass, no rejection.
+// Maps the unit square to the unit disk while preserving area.
+inline __device__ float2 random_in_unit_disk(RngState &rng) {
+  float r = sqrtf(rng_next_f32(rng));
+  float theta = 2.0f * PI * rng_next_f32(rng);
+  float sin_t, cos_t;
+  sincosf(theta, &sin_t, &cos_t);
+  return make_float2(r * cos_t, r * sin_t);
 }
 
-// Intuitively, we are checking the parallel planes of each axis and seeing if
-// the ray intersects the box that those 3 pairs of planes form. We are
-// considered inside the box if the ray is within each of the 3 intervals at the
-// same time, and exited the box as soon as we are outside of any one of the
-// intervals. t_min tracks the latest entry point into the box. t_max tracks the
-// earliest exit point from the box. After all the checks, t_min and t_max
-// describe the interval where the ray is inside the box.
+// ---------------------------------------------------------------------------
+// AABB intersection — three axes manually unrolled.
+// inv_dir is pre-negated by swapping t0/t1 when inv_dir < 0, which avoids
+// a branch per axis by using fminf/fmaxf on the already-ordered values.
+// ---------------------------------------------------------------------------
 inline __device__ bool hit_aabb(const float3 &bmin, const float3 &bmax,
                                 const Ray &r, float t_min, float t_max) {
-  for (int axis = 0; axis < 3; ++axis) {
-    const float origin = (axis == 0)   ? r.origin.x
-                         : (axis == 1) ? r.origin.y
-                                       : r.origin.z;
-    const float dir = (axis == 0) ? r.dir.x : (axis == 1) ? r.dir.y : r.dir.z;
-    float minv = (axis == 0) ? bmin.x : (axis == 1) ? bmin.y : bmin.z;
-    float maxv = (axis == 0) ? bmax.x : (axis == 1) ? bmax.y : bmax.z;
-
-    const float inv_dir = 1.0f / dir;
-    float t0 = (minv - origin) * inv_dir;
-    float t1 = (maxv - origin) * inv_dir;
+  // X axis
+  {
+    const float inv_dir = 1.0f / r.dir.x;
+    float t0 = (bmin.x - r.origin.x) * inv_dir;
+    float t1 = (bmax.x - r.origin.x) * inv_dir;
     if (inv_dir < 0.0f) {
       float tmp = t0;
       t0 = t1;
       t1 = tmp;
     }
-
     t_min = fmaxf(t_min, t0);
     t_max = fminf(t_max, t1);
-    if (t_max <= t_min) {
+    if (t_max <= t_min)
       return false;
+  }
+  // Y axis
+  {
+    const float inv_dir = 1.0f / r.dir.y;
+    float t0 = (bmin.y - r.origin.y) * inv_dir;
+    float t1 = (bmax.y - r.origin.y) * inv_dir;
+    if (inv_dir < 0.0f) {
+      float tmp = t0;
+      t0 = t1;
+      t1 = tmp;
     }
+    t_min = fmaxf(t_min, t0);
+    t_max = fminf(t_max, t1);
+    if (t_max <= t_min)
+      return false;
+  }
+  // Z axis
+  {
+    const float inv_dir = 1.0f / r.dir.z;
+    float t0 = (bmin.z - r.origin.z) * inv_dir;
+    float t1 = (bmax.z - r.origin.z) * inv_dir;
+    if (inv_dir < 0.0f) {
+      float tmp = t0;
+      t0 = t1;
+      t1 = tmp;
+    }
+    t_min = fmaxf(t_min, t0);
+    t_max = fminf(t_max, t1);
+    if (t_max <= t_min)
+      return false;
   }
   return true;
 }
@@ -74,18 +95,15 @@ inline __device__ bool hit_sphere(const GpuSphere &s, const Ray &r, float t_min,
   float c = len_sq3(oc) - s.radius * s.radius;
   float disc = h * h - a * c;
 
-  if (disc < 0.0f) {
+  if (disc < 0.0f)
     return false;
-  }
 
   float sqrtd = sqrtf(disc);
-
   float root = (h - sqrtd) / a;
   if (root <= t_min || root >= t_max) {
     root = (h + sqrtd) / a;
-    if (root <= t_min || root >= t_max) {
+    if (root <= t_min || root >= t_max)
       return false;
-    }
   }
 
   out_hit.t = root;
@@ -93,10 +111,14 @@ inline __device__ bool hit_sphere(const GpuSphere &s, const Ray &r, float t_min,
   float3 outward_normal = div3(sub3(out_hit.p, s.center), s.radius);
   set_face_normal(out_hit, r, outward_normal);
   out_hit.material_index = s.material_index;
-
   return true;
 }
 
+// ---------------------------------------------------------------------------
+// BVH traversal — __ldg() for read-only node loads.
+// The node struct fields are fetched into local variables once per iteration
+// to avoid repeated global memory loads from the same address.
+// ---------------------------------------------------------------------------
 inline __device__ bool hit_scene(const GpuScene &scene, const Ray &r,
                                  float t_min, float t_max, Hit &rec) {
   if (scene.bvh_nodes == nullptr || scene.bvh_node_count == 0 ||
@@ -109,21 +131,30 @@ inline __device__ bool hit_scene(const GpuScene &scene, const Ray &r,
   float closest = t_max;
 
   uint32_t node_index = 0;
-  while (node_index < static_cast<uint32_t>(scene.bvh_node_count)) {
-    const BVHNode &node = scene.bvh_nodes[node_index];
-    const bool is_leaf = (node.flags & 1u) != 0u;
+  const uint32_t node_count = static_cast<uint32_t>(scene.bvh_node_count);
 
-    if (!hit_aabb(node.aabb_min, node.aabb_max, r, t_min, closest)) {
-      node_index = is_leaf ? (node_index + 1u) : node.right;
+  while (node_index < node_count) {
+    // Prefetch node fields via texture cache — BVH is read-only during
+    // traversal.
+    const BVHNode *np = scene.bvh_nodes + node_index;
+    const float3 aabb_min = __ldg(&np->aabb_min);
+    const float3 aabb_max = __ldg(&np->aabb_max);
+    const uint32_t left = __ldg(&np->left);
+    const uint32_t right = __ldg(&np->right);
+    const uint32_t flags = __ldg(&np->flags);
+    const bool is_leaf = (flags & 1u) != 0u;
+
+    if (!hit_aabb(aabb_min, aabb_max, r, t_min, closest)) {
+      node_index = is_leaf ? (node_index + 1u) : right;
       continue;
     }
 
     if (is_leaf) {
-      const uint32_t first = node.left;
-      const uint32_t count = node.right;
+      const uint32_t first = left;
+      const uint32_t count = right;
       for (uint32_t i = 0; i < count; ++i) {
-        const uint32_t sphere_index = scene.bvh_primitive_indices[first + i];
-        if (hit_sphere(scene.spheres[sphere_index], r, t_min, closest, tmp)) {
+        const uint32_t si = __ldg(&scene.bvh_primitive_indices[first + i]);
+        if (hit_sphere(scene.spheres[si], r, t_min, closest, tmp)) {
           hit_anything = true;
           closest = tmp.t;
           rec = tmp;
@@ -131,27 +162,31 @@ inline __device__ bool hit_scene(const GpuScene &scene, const Ray &r,
       }
       node_index += 1u;
     } else {
-      node_index = node.left;
+      node_index = left;
     }
   }
 
   return hit_anything;
 }
 
-// inline __device__ float reflectance(float cosine, float ref_idx) {
-//   float r0 = (1.0f - ref_idx) / (1.0f + ref_idx);
-//   r0 = r0 * r0;
-//   return r0 + (1.0f - r0) * powf(1.0f - cosine, 5.0f);
-// }
-
-inline __device__ bool scatter(const GpuMaterial &mat, const Ray &r_in,
-                               const Hit &hit, RngState &rng,
+// ---------------------------------------------------------------------------
+// Scatter — Lambertian only.
+// Only the fields scatter actually needs are extracted from Hit:
+//   rec.normal         — scatter direction base
+//   rec.p              — new ray origin
+//   rec.material_index — already consumed before scatter is called
+// rec.t and rec.front_face are not read here.
+// ---------------------------------------------------------------------------
+inline __device__ bool scatter(const GpuMaterial &mat, const float3 &hit_p,
+                               const float3 &hit_normal, RngState &rng,
                                float3 &attenuation, Ray &scattered) {
-  float3 scatter_dir = add3(hit.normal, random_unit_vector(rng));
+  float3 scatter_dir = add3(hit_normal, random_unit_vector(rng));
+  // Guard against degenerate scatter direction when random vector cancels
+  // normal.
   if (len_sq3(scatter_dir) < 1e-8f) {
-    scatter_dir = hit.normal;
+    scatter_dir = hit_normal;
   }
-  scattered.origin = hit.p;
+  scattered.origin = hit_p;
   scattered.dir = scatter_dir;
   attenuation = mat.albedo;
   return true;
@@ -165,6 +200,10 @@ inline __device__ float3 sky_color(const Ray &r) {
   return add3(mul3(c0, 1.0f - a), mul3(c1, a));
 }
 
+// ---------------------------------------------------------------------------
+// Primary ray generation.
+// Defocus blur samples use the rejection-free disk sampler.
+// ---------------------------------------------------------------------------
 inline __device__ Ray get_ray(const GpuCamera &cam, int px, int py,
                               RngState &rng) {
   float ox = rng_next_f32(rng) - 0.5f;
@@ -177,7 +216,7 @@ inline __device__ Ray get_ray(const GpuCamera &cam, int px, int py,
 
   float3 origin = cam.center;
   if (cam.defocus_angle > 0.0f) {
-    float3 p = random_in_unit_disk(rng);
+    float2 p = random_in_unit_disk(rng);
     origin = add3(cam.center, add3(mul3(cam.defocus_disk_u, p.x),
                                    mul3(cam.defocus_disk_v, p.y)));
   }
@@ -188,6 +227,23 @@ inline __device__ Ray get_ray(const GpuCamera &cam, int px, int py,
   return r;
 }
 
+inline __device__ uchar3 to_rgb8(const float3 &c) {
+  // Gamma-2 encode (sqrt) and convert to 8-bit.
+  float r = sqrtf(fmaxf(c.x, 0.0f));
+  float g = sqrtf(fmaxf(c.y, 0.0f));
+  float b = sqrtf(fmaxf(c.z, 0.0f));
+  unsigned char rb =
+      static_cast<unsigned char>(256.0f * clampf(r, 0.0f, 0.999f));
+  unsigned char gb =
+      static_cast<unsigned char>(256.0f * clampf(g, 0.0f, 0.999f));
+  unsigned char bb =
+      static_cast<unsigned char>(256.0f * clampf(b, 0.0f, 0.999f));
+  return make_uchar3(rb, gb, bb);
+}
+
+// ---------------------------------------------------------------------------
+// Megakernel (retained for reference / comparison)
+// ---------------------------------------------------------------------------
 inline __device__ float3 ray_color_iterative(const Ray &initial_ray,
                                              int max_depth,
                                              const GpuScene &scene,
@@ -202,47 +258,29 @@ inline __device__ float3 ray_color_iterative(const Ray &initial_ray,
       radiance = add3(radiance, mul3(throughput, sky_color(ray)));
       break;
     }
-
     const GpuMaterial &mat = scene.materials[rec.material_index];
     float3 attenuation;
     Ray scattered;
-    if (!scatter(mat, ray, rec, rng, attenuation, scattered)) {
+    if (!scatter(mat, rec.p, rec.normal, rng, attenuation, scattered))
       break;
-    }
-
     throughput = mul3(throughput, attenuation);
     ray = scattered;
   }
-
   return radiance;
 }
 
-inline __device__ uchar3 to_rgb8(const float3 &c) {
-  float r = sqrtf(fmaxf(c.x, 0.0f));
-  float g = sqrtf(fmaxf(c.y, 0.0f));
-  float b = sqrtf(fmaxf(c.z, 0.0f));
-
-  unsigned char rb =
-      static_cast<unsigned char>(256.0f * clampf(r, 0.0f, 0.999f));
-  unsigned char gb =
-      static_cast<unsigned char>(256.0f * clampf(g, 0.0f, 0.999f));
-  unsigned char bb =
-      static_cast<unsigned char>(256.0f * clampf(b, 0.0f, 0.999f));
-
-  return make_uchar3(rb, gb, bb);
-}
-
 } // namespace
+
+// ---------------------------------------------------------------------------
+// Megakernel launch (retained)
+// ---------------------------------------------------------------------------
 
 __global__ void init_rng_kernel(RngState *rng, int width, int height,
                                 uint32_t seed) {
   int x = blockIdx.x * blockDim.x + threadIdx.x;
   int y = blockIdx.y * blockDim.y + threadIdx.y;
-
-  if (x >= width || y >= height) {
+  if (x >= width || y >= height)
     return;
-  }
-
   int idx = y * width + x;
   rng_seed(rng[idx], seed, static_cast<uint32_t>(idx));
 }
@@ -251,14 +289,11 @@ __global__ void render_kernel(uchar3 *out_rgb, GpuCamera cam, GpuScene scene,
                               RngState *rng_states) {
   int x = blockIdx.x * blockDim.x + threadIdx.x;
   int y = blockIdx.y * blockDim.y + threadIdx.y;
-
-  if (x >= cam.image_width || y >= cam.image_height) {
+  if (x >= cam.image_width || y >= cam.image_height)
     return;
-  }
 
   int idx = y * cam.image_width + x;
   RngState rng = rng_states[idx];
-
   float3 accum = make_vec3(0.0f, 0.0f, 0.0f);
 
   for (int s = 0; s < cam.samples_per_pixel; ++s) {
@@ -273,11 +308,9 @@ __global__ void render_kernel(uchar3 *out_rgb, GpuCamera cam, GpuScene scene,
 
 cudaError_t launch_init_rng(RngState *d_rng, int image_width, int image_height,
                             uint32_t seed, cudaStream_t stream) {
-
-  dim3 block(16, 16);
+  dim3 block(32, 8);
   dim3 grid((image_width + block.x - 1) / block.x,
             (image_height + block.y - 1) / block.y);
-
   init_rng_kernel<<<grid, block, 0, stream>>>(d_rng, image_width, image_height,
                                               seed);
   return cudaGetLastError();
@@ -285,11 +318,9 @@ cudaError_t launch_init_rng(RngState *d_rng, int image_width, int image_height,
 
 cudaError_t launch_render(uchar3 *d_framebuffer, GpuCamera cam, GpuScene scene,
                           RngState *d_rng, cudaStream_t stream) {
-
-  dim3 block(16, 16);
+  dim3 block(32, 8);
   dim3 grid((cam.image_width + block.x - 1) / block.x,
             (cam.image_height + block.y - 1) / block.y);
-
   render_kernel<<<grid, block, 0, stream>>>(d_framebuffer, cam, scene, d_rng);
   return cudaGetLastError();
 }
@@ -297,62 +328,58 @@ cudaError_t launch_render(uchar3 *d_framebuffer, GpuCamera cam, GpuScene scene,
 // ---------------------------------------------------------------------------
 // Wavefront kernels
 // ---------------------------------------------------------------------------
-// Each thread owns one path (one sample for one pixel).
-// Path index:  i = blockIdx.x * blockDim.x + threadIdx.x
-// Pixel index: pixel = i / samples_per_pixel  (stored in b.pixel_index[i])
+// Layout: path i belongs to pixel (i / samples_per_pixel).
+// Outer sample loop is on the HOST — one kernel launch per sample.
+// The float3 framebuffer (b.accum) persists across all sample launches and
+// is zeroed once before the first sample, NOT inside the kernel.
 // ---------------------------------------------------------------------------
 
 // --- Init -------------------------------------------------------------------
-// Generate the primary ray and initialise per-path state.
-// Also zeroes the accum buffer (one thread per pixel via a separate pass
-// handled by cudaMemset in the launch wrapper).
+// Generate primary ray for sample `sample_index` and initialise per-path state.
+// Called once per sample. Accumulator is zeroed by the host before sample 0.
 
 __global__ void wavefront_init_kernel(WavefrontBuffers b, GpuCamera cam,
-                                      uint32_t seed) {
-  const int i = blockIdx.x * blockDim.x + threadIdx.x;
-  if (i >= b.total_paths)
+                                      uint32_t base_seed, int sample_index) {
+  const int pixel = blockIdx.x * blockDim.x + threadIdx.x;
+  if (pixel >= b.total_pixels)
     return;
 
-  const int pixel = i / b.samples_per_pixel;
   const int px = pixel % cam.image_width;
   const int py = pixel / cam.image_width;
 
-  // Give every path a unique RNG lane.
+  // Each (pixel, sample) pair gets a unique RNG lane.
+  // Using sample_index in the seed keeps each sample statistically independent.
   RngState rng;
-  rng_seed(rng, seed, static_cast<uint32_t>(i));
+  rng_seed(rng, base_seed ^ static_cast<uint32_t>(sample_index * 1000003),
+           static_cast<uint32_t>(pixel));
 
-  b.rays[i] = get_ray(cam, px, py, rng);
-  b.throughput[i] = make_vec3(1.0f, 1.0f, 1.0f);
-  b.pixel_index[i] = pixel;
-  b.active[i] = true;
-  b.rng[i] = rng;
+  b.rays[pixel] = get_ray(cam, px, py, rng);
+  b.throughput[pixel] = make_vec3(1.0f, 1.0f, 1.0f);
+  b.active[pixel] = true;
+  b.rng[pixel] = rng;
+  // pixel_index not needed — in one-sample-per-kernel layout, path == pixel.
 }
 
 // --- Bounce -----------------------------------------------------------------
-// One bounce of the path tracing loop.  Call this kernel max_depth times.
-// Inactive paths are skipped cheaply (no BVH traversal).
+// One bounce per launch. Host calls this max_depth times per sample.
 
 __global__ void wavefront_bounce_kernel(WavefrontBuffers b, GpuScene scene) {
-  const int i = blockIdx.x * blockDim.x + threadIdx.x;
-  if (i >= b.total_paths)
+  const int pixel = blockIdx.x * blockDim.x + threadIdx.x;
+  if (pixel >= b.total_pixels)
     return;
-  if (!b.active[i])
+  if (!b.active[pixel])
     return;
 
-  RngState rng = b.rng[i];
-  Ray ray = b.rays[i];
+  RngState rng = b.rng[pixel];
+  Ray ray = b.rays[pixel];
 
   Hit rec;
   if (!hit_scene(scene, ray, 0.001f, 1e30f, rec)) {
-    // Ray escaped — add sky contribution and deactivate.
-    const float3 sky = sky_color(ray);
-    const float3 contrib = mul3(b.throughput[i], sky);
-    const int pixel = b.pixel_index[i];
-    atomicAdd(&b.accum[pixel].x, contrib.x);
-    atomicAdd(&b.accum[pixel].y, contrib.y);
-    atomicAdd(&b.accum[pixel].z, contrib.z);
-    b.active[i] = false;
-    b.rng[i] = rng;
+    // Missed — accumulate sky and terminate.
+    const float3 contrib = mul3(b.throughput[pixel], sky_color(ray));
+    b.accum[pixel] = add3(b.accum[pixel], contrib);
+    b.active[pixel] = false;
+    b.rng[pixel] = rng;
     return;
   }
 
@@ -360,62 +387,62 @@ __global__ void wavefront_bounce_kernel(WavefrontBuffers b, GpuScene scene) {
   float3 attenuation;
   Ray scattered;
 
-  if (!scatter(mat, ray, rec, rng, attenuation, scattered)) {
-    // Absorbed — path ends with no further contribution.
-    b.active[i] = false;
-    b.rng[i] = rng;
+  // Pass only the two fields scatter actually reads (p and normal).
+  if (!scatter(mat, rec.p, rec.normal, rng, attenuation, scattered)) {
+    b.active[pixel] = false;
+    b.rng[pixel] = rng;
     return;
   }
 
-  b.throughput[i] = mul3(b.throughput[i], attenuation);
-  b.rays[i] = scattered;
-  b.rng[i] = rng;
-  // b.active[i] stays true — path continues next bounce.
+  b.throughput[pixel] = mul3(b.throughput[pixel], attenuation);
+  b.rays[pixel] = scattered;
+  b.rng[pixel] = rng;
 }
 
 // --- Finalize ---------------------------------------------------------------
-// Convert the accumulated per-pixel sum to a gamma-corrected RGB byte value.
-// One thread per pixel.
+// After all samples have accumulated into b.accum, convert to gamma-corrected
+// 8-bit RGB. One thread per pixel.
 
-__global__ void wavefront_finalize_kernel(const WavefrontBuffers b, uchar3 *out,
+__global__ void wavefront_finalize_kernel(const float3 *accum, uchar3 *out,
                                           int total_pixels, float inv_spp) {
   const int pixel = blockIdx.x * blockDim.x + threadIdx.x;
   if (pixel >= total_pixels)
     return;
-
-  out[pixel] = to_rgb8(mul3(b.accum[pixel], inv_spp));
+  out[pixel] = to_rgb8(mul3(accum[pixel], inv_spp));
 }
 
 // --- Launch wrappers --------------------------------------------------------
 
-cudaError_t launch_wavefront_init(WavefrontBuffers &b, GpuCamera cam,
-                                  cudaStream_t stream) {
-  // Zero the accumulator before spawning paths.
-  cudaError_t err =
-      cudaMemsetAsync(b.accum, 0, b.total_pixels * sizeof(float3), stream);
-  if (err != cudaSuccess)
-    return err;
+// Call once before the sample loop. Zeroes the accumulator.
+cudaError_t launch_wavefront_accum_clear(WavefrontBuffers &b,
+                                         cudaStream_t stream) {
+  return cudaMemsetAsync(b.accum, 0, b.total_pixels * sizeof(float3), stream);
+}
 
-  const int block = 128;
-  const int grid = (b.total_paths + block - 1) / block;
-  wavefront_init_kernel<<<grid, block, 0, stream>>>(b, cam, 1337u);
+cudaError_t launch_wavefront_init(WavefrontBuffers &b, GpuCamera cam,
+                                  uint32_t seed, int sample_index,
+                                  cudaStream_t stream) {
+  const int block = 256;
+  const int grid = (b.total_pixels + block - 1) / block;
+  wavefront_init_kernel<<<grid, block, 0, stream>>>(b, cam, seed, sample_index);
   return cudaGetLastError();
 }
 
 cudaError_t launch_wavefront_bounce(WavefrontBuffers &b, GpuScene scene,
                                     cudaStream_t stream) {
-  const int block = 128;
-  const int grid = (b.total_paths + block - 1) / block;
+  const int block = 256;
+  const int grid = (b.total_pixels + block - 1) / block;
   wavefront_bounce_kernel<<<grid, block, 0, stream>>>(b, scene);
   return cudaGetLastError();
 }
 
 cudaError_t launch_wavefront_finalize(const WavefrontBuffers &b, uchar3 *d_out,
-                                      GpuCamera cam, cudaStream_t stream) {
-  const float inv_spp = 1.0f / static_cast<float>(b.samples_per_pixel);
-  const int block = 128;
+                                      int samples_per_pixel,
+                                      cudaStream_t stream) {
+  const float inv_spp = 1.0f / static_cast<float>(samples_per_pixel);
+  const int block = 256;
   const int grid = (b.total_pixels + block - 1) / block;
   wavefront_finalize_kernel<<<grid, block, 0, stream>>>(
-      b, d_out, b.total_pixels, inv_spp);
+      b.accum, d_out, b.total_pixels, inv_spp);
   return cudaGetLastError();
 }

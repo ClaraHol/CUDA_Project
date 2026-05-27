@@ -35,11 +35,10 @@ bool render_cuda_scene(const GpuCamera &cam,
                        const std::vector<GpuMaterial> &materials,
                        const std::string &output_path, double &elapsed_seconds,
                        std::string &error_message) {
-
   elapsed_seconds = 0.0;
 
   if (spheres.empty()) {
-    error_message = "Scene is empty; nothing to render.";
+    error_message = "Scene is empty.";
     return false;
   }
   if (materials.empty()) {
@@ -65,7 +64,7 @@ bool render_cuda_scene(const GpuCamera &cam,
   GpuMaterial *d_materials = nullptr;
   uchar3 *d_framebuffer = nullptr;
   BVHNode *d_bvh_nodes = nullptr;
-  uint32_t *d_bvh_primitive_indices = nullptr;
+  uint32_t *d_bvh_prim = nullptr;
 
   std::vector<uchar3> h_framebuffer(static_cast<size_t>(pixel_count));
 
@@ -73,7 +72,7 @@ bool render_cuda_scene(const GpuCamera &cam,
     cudaFree(d_framebuffer);
     cudaFree(d_materials);
     cudaFree(d_spheres);
-    cudaFree(d_bvh_primitive_indices);
+    cudaFree(d_bvh_prim);
     cudaFree(d_bvh_nodes);
   };
 
@@ -93,8 +92,8 @@ bool render_cuda_scene(const GpuCamera &cam,
   CUDA_CHECK(cudaMalloc(&d_materials, materials.size() * sizeof(GpuMaterial)));
   CUDA_CHECK(cudaMalloc(&d_framebuffer, pixel_count * sizeof(uchar3)));
   CUDA_CHECK(cudaMalloc(&d_bvh_nodes, bvh.nodes.size() * sizeof(BVHNode)));
-  CUDA_CHECK(cudaMalloc(&d_bvh_primitive_indices,
-                        bvh.primitive_indices.size() * sizeof(uint32_t)));
+  CUDA_CHECK(
+      cudaMalloc(&d_bvh_prim, bvh.primitive_indices.size() * sizeof(uint32_t)));
 
   CUDA_CHECK(cudaMemcpy(d_spheres, spheres.data(),
                         spheres.size() * sizeof(GpuSphere),
@@ -105,7 +104,7 @@ bool render_cuda_scene(const GpuCamera &cam,
   CUDA_CHECK(cudaMemcpy(d_bvh_nodes, bvh.nodes.data(),
                         bvh.nodes.size() * sizeof(BVHNode),
                         cudaMemcpyHostToDevice));
-  CUDA_CHECK(cudaMemcpy(d_bvh_primitive_indices, bvh.primitive_indices.data(),
+  CUDA_CHECK(cudaMemcpy(d_bvh_prim, bvh.primitive_indices.data(),
                         bvh.primitive_indices.size() * sizeof(uint32_t),
                         cudaMemcpyHostToDevice));
 
@@ -116,14 +115,13 @@ bool render_cuda_scene(const GpuCamera &cam,
   scene.material_count = static_cast<int>(materials.size());
   scene.bvh_nodes = d_bvh_nodes;
   scene.bvh_node_count = static_cast<int>(bvh.nodes.size());
-  scene.bvh_primitive_indices = d_bvh_primitive_indices;
+  scene.bvh_primitive_indices = d_bvh_prim;
 
   // -------------------------------------------------------------------------
-  // Wavefront buffers
+  // Wavefront buffers (sized to total_pixels, no SPP multiplier)
   // -------------------------------------------------------------------------
   WavefrontBuffers wf{};
-  err = allocate_wavefront_buffers(wf, cam.image_width, cam.image_height,
-                                   cam.samples_per_pixel);
+  err = allocate_wavefront_buffers(wf, cam.image_width, cam.image_height);
   if (err != cudaSuccess) {
     error_message = cudaGetErrorString(err);
     free_wavefront_buffers(wf);
@@ -137,19 +135,27 @@ bool render_cuda_scene(const GpuCamera &cam,
   cudaEvent_t ev_start{}, ev_stop{};
   cudaEventCreate(&ev_start);
   cudaEventCreate(&ev_stop);
-
   cudaEventRecord(ev_start);
 
-  // 1. Generate primary rays, seed RNG, zero accumulator.
-  CUDA_CHECK(launch_wavefront_init(wf, cam, nullptr));
+  // Zero accumulator once — it will be written by all sample launches.
+  CUDA_CHECK(launch_wavefront_accum_clear(wf, nullptr));
 
-  // 2. Iterate bounces.
-  for (int bounce = 0; bounce < cam.max_depth; ++bounce) {
-    CUDA_CHECK(launch_wavefront_bounce(wf, scene, nullptr));
+  constexpr uint32_t BASE_SEED = 0xA7B3C1D5u;
+
+  for (int s = 0; s < cam.samples_per_pixel; ++s) {
+    // Generate primary rays for this sample. Each (pixel, sample) pair
+    // gets a statistically independent RNG lane via the sample index.
+    CUDA_CHECK(launch_wavefront_init(wf, cam, BASE_SEED, s, nullptr));
+
+    // Bounce up to max_depth times. Inactive paths are no-ops.
+    for (int b = 0; b < cam.max_depth; ++b) {
+      CUDA_CHECK(launch_wavefront_bounce(wf, scene, nullptr));
+    }
   }
 
-  // 3. Resolve accumulator → RGB framebuffer.
-  CUDA_CHECK(launch_wavefront_finalize(wf, d_framebuffer, cam, nullptr));
+  // Divide accum by SPP and gamma-encode to the output framebuffer.
+  CUDA_CHECK(launch_wavefront_finalize(wf, d_framebuffer, cam.samples_per_pixel,
+                                       nullptr));
 
   cudaEventRecord(ev_stop);
   cudaEventSynchronize(ev_stop);
@@ -162,7 +168,7 @@ bool render_cuda_scene(const GpuCamera &cam,
   cudaEventDestroy(ev_stop);
 
   // -------------------------------------------------------------------------
-  // Readback & write PNG
+  // Readback and write PNG
   // -------------------------------------------------------------------------
   CUDA_CHECK(cudaMemcpy(h_framebuffer.data(), d_framebuffer,
                         pixel_count * sizeof(uchar3), cudaMemcpyDeviceToHost));
