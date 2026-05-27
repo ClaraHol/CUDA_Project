@@ -6,8 +6,8 @@
 #include <cuda_runtime.h>
 
 struct BVHNode {
-  float3 aabb_min;
-  float3 aabb_max;
+  float4 aabb_min;
+  float4 aabb_max;
 
   // Internal node:
   // left = first child node index (preorder next node)

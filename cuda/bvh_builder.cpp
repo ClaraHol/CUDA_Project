@@ -9,31 +9,33 @@ namespace // anonymous namespace - contents only visible in this file.
 {
 
 struct AABB {
-  float3 minv;
-  float3 maxv;
+  float4 minv;
+  float4 maxv;
 };
 
 inline AABB empty_aabb() {
   const float inf = std::numeric_limits<float>::infinity();
-  return {make_float3(inf, inf, inf), make_float3(-inf, -inf, -inf)};
+  return {make_float4(inf, inf, inf, 0.0f),
+          make_float4(-inf, -inf, -inf, 0.0f)};
 }
 
-inline float3 fmin3(const float3 &a, const float3 &b) {
-  return make_float3(fminf(a.x, b.x), fminf(a.y, b.y), fminf(a.z, b.z));
+inline float4 fmin4(const float4 &a, const float4 &b) {
+  return make_float4(fminf(a.x, b.x), fminf(a.y, b.y), fminf(a.z, b.z), 0.0f);
 }
 
-inline float3 fmax3(const float3 &a, const float3 &b) {
-  return make_float3(fmaxf(a.x, b.x), fmaxf(a.y, b.y), fmaxf(a.z, b.z));
+inline float4 fmax4(const float4 &a, const float4 &b) {
+  return make_float4(fmaxf(a.x, b.x), fmaxf(a.y, b.y), fmaxf(a.z, b.z), 0.0f);
 }
 
 inline AABB merge_aabb(const AABB &a, const AABB &b) {
-  return {fmin3(a.minv, b.minv), fmax3(a.maxv, b.maxv)};
+  return {fmin4(a.minv, b.minv), fmax4(a.maxv, b.maxv)};
 }
 
 inline AABB sphere_aabb(const GpuSphere &s) {
   const float3 r = make_float3(s.radius, s.radius, s.radius);
-  return {make_float3(s.center.x - r.x, s.center.y - r.y, s.center.z - r.z),
-          make_float3(s.center.x + r.x, s.center.y + r.y, s.center.z + r.z)};
+  return {
+      make_float4(s.center.x - r.x, s.center.y - r.y, s.center.z - r.z, 0.0f),
+      make_float4(s.center.x + r.x, s.center.y + r.y, s.center.z + r.z, 0.0f)};
 }
 
 class BVHBuilder {
@@ -69,8 +71,8 @@ private:
       bounds = merge_aabb(bounds, sb);
 
       AABB cb{};
-      cb.minv = s.center;
-      cb.maxv = s.center;
+      cb.minv = make_float4(s.center.x, s.center.y, s.center.z, 0.0f);
+      cb.maxv = make_float4(s.center.x, s.center.y, s.center.z, 0.0f);
       centroid_bounds = merge_aabb(centroid_bounds, cb);
     }
 

@@ -37,7 +37,7 @@ inline __device__ float2 random_in_unit_disk(RngState &rng) {
 // inv_dir is pre-negated by swapping t0/t1 when inv_dir < 0, which avoids
 // a branch per axis by using fminf/fmaxf on the already-ordered values.
 // ---------------------------------------------------------------------------
-inline __device__ bool hit_aabb(const float3 &bmin, const float3 &bmax,
+inline __device__ bool hit_aabb(const float4 &bmin, const float4 &bmax,
                                 const Ray &r, float t_min, float t_max) {
   // X axis
   {
@@ -137,8 +137,8 @@ inline __device__ bool hit_scene(const GpuScene &scene, const Ray &r,
     // Prefetch node fields via texture cache — BVH is read-only during
     // traversal.
     const BVHNode *np = scene.bvh_nodes + node_index;
-    const float3 aabb_min = __ldg(&np->aabb_min);
-    const float3 aabb_max = __ldg(&np->aabb_max);
+    const float4 aabb_min = __ldg(&np->aabb_min);
+    const float4 aabb_max = __ldg(&np->aabb_max);
     const uint32_t left = __ldg(&np->left);
     const uint32_t right = __ldg(&np->right);
     const uint32_t flags = __ldg(&np->flags);
