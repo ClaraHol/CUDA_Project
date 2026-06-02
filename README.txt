@@ -43,9 +43,9 @@ and use that to run NCU.
 
 source load_modules.sh
 mkdir -p $HOME/.tmp-ncu
-TMPDIR=$HOME/.tmp-ncu ncu ./build/raytrace
+TMPDIR=$HOME/.tmp-ncu ncu ./build/raytrace cover 500
 
 To get an output file that can be viewed with Nsight Compute GUI:
 
 mkdir -p $HOME/.tmp-ncu
-TMPDIR=$HOME/.tmp-ncu ncu -o profile_test --page=details ./build/raytrace 
+TMPDIR=$HOME/.tmp-ncu ncu -o profile_test --page=details ./build/raytrace cover 500
