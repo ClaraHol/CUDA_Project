@@ -349,8 +349,10 @@ __global__ void wavefront_init_kernel(WavefrontBuffers b, GpuCamera cam,
 
 // --- Bounce -----------------------------------------------------------------
 // One bounce per launch. Host calls this max_depth times per sample.
-
-__global__ void wavefront_bounce_kernel(WavefrontBuffers b, GpuScene scene) {
+// (256,4) launch bounds is default.
+__global__ __launch_bounds__(256,
+                             4) void wavefront_bounce_kernel(WavefrontBuffers b,
+                                                             GpuScene scene) {
   const int path = blockIdx.x * blockDim.x + threadIdx.x;
   if (path >= b.total_paths)
     return;
