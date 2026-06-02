@@ -13,3 +13,7 @@
 *.ppm
 *.png
 .clang-format
+
+#Generated profiling logs.
+*.nsys-rep
+*.ncu-rep
