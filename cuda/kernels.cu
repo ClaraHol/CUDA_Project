@@ -325,38 +325,25 @@ cudaError_t launch_render(uchar3 *d_framebuffer, GpuCamera cam, GpuScene scene,
   return cudaGetLastError();
 }
 
-// ---------------------------------------------------------------------------
-// Wavefront kernels
-// ---------------------------------------------------------------------------
-// Layout: path i belongs to pixel (i / samples_per_pixel).
-// Outer sample loop is on the HOST — one kernel launch per sample.
-// The float3 framebuffer (b.accum) persists across all sample launches and
-// is zeroed once before the first sample, NOT inside the kernel.
-// ---------------------------------------------------------------------------
-
-// --- Init -------------------------------------------------------------------
-// Generate primary ray for sample `sample_index` and initialise per-path state.
-// Called once per sample. Accumulator is zeroed by the host before sample 0.
-
 __global__ void wavefront_init_kernel(WavefrontBuffers b, GpuCamera cam,
-                                      uint32_t base_seed, int sample_index) {
-  const int pixel = blockIdx.x * blockDim.x + threadIdx.x;
-  if (pixel >= b.total_pixels)
+                                      uint32_t base_seed) {
+  const int path = blockIdx.x * blockDim.x + threadIdx.x;
+  if (path >= b.total_paths)
     return;
 
+  const int pixel = path % b.total_pixels;
   const int px = pixel % cam.image_width;
   const int py = pixel / cam.image_width;
 
-  // Each (pixel, sample) pair gets a unique RNG lane.
-  // Using sample_index in the seed keeps each sample statistically independent.
+  // Seed by flat path index - every path gets a unique sequence
   RngState rng;
-  rng_seed(rng, base_seed ^ static_cast<uint32_t>(sample_index * 1000003),
-           static_cast<uint32_t>(pixel));
+  rng_seed(rng, base_seed, static_cast<uint32_t>(path));
 
-  b.rays[pixel] = get_ray(cam, px, py, rng);
-  b.throughput[pixel] = make_vec3(1.0f, 1.0f, 1.0f);
-  b.active[pixel] = true;
-  b.rng[pixel] = rng;
+  b.rays[path] = get_ray(cam, px, py, rng);
+  b.throughput[path] = make_vec3(1.0f, 1.0f, 1.0f);
+  b.active[path] = true;
+  b.rng[path] = rng;
+  b.pixel_index[path] = pixel;
   // pixel_index not needed — in one-sample-per-kernel layout, path == pixel.
 }
 
@@ -364,22 +351,25 @@ __global__ void wavefront_init_kernel(WavefrontBuffers b, GpuCamera cam,
 // One bounce per launch. Host calls this max_depth times per sample.
 
 __global__ void wavefront_bounce_kernel(WavefrontBuffers b, GpuScene scene) {
-  const int pixel = blockIdx.x * blockDim.x + threadIdx.x;
-  if (pixel >= b.total_pixels)
+  const int path = blockIdx.x * blockDim.x + threadIdx.x;
+  if (path >= b.total_paths)
     return;
-  if (!b.active[pixel])
+  if (!b.active[path])
     return;
 
-  RngState rng = b.rng[pixel];
-  Ray ray = b.rays[pixel];
+  RngState rng = b.rng[path];
+  Ray ray = b.rays[path];
+  const int pixel = b.pixel_index[path];
 
   Hit rec;
   if (!hit_scene(scene, ray, 0.001f, 1e30f, rec)) {
     // Missed — accumulate sky and terminate.
-    const float3 contrib = mul3(b.throughput[pixel], sky_color(ray));
-    b.accum[pixel] = add3(b.accum[pixel], contrib);
-    b.active[pixel] = false;
-    b.rng[pixel] = rng;
+    const float3 contrib = mul3(b.throughput[path], sky_color(ray));
+    atomicAdd(&b.accum[pixel].x, contrib.x);
+    atomicAdd(&b.accum[pixel].y, contrib.y);
+    atomicAdd(&b.accum[pixel].z, contrib.z);
+    b.active[path] = false;
+    b.rng[path] = rng;
     return;
   }
 
@@ -389,14 +379,14 @@ __global__ void wavefront_bounce_kernel(WavefrontBuffers b, GpuScene scene) {
 
   // Pass only the two fields scatter actually reads (p and normal).
   if (!scatter(mat, rec.p, rec.normal, rng, attenuation, scattered)) {
-    b.active[pixel] = false;
-    b.rng[pixel] = rng;
+    b.active[path] = false;
+    b.rng[path] = rng;
     return;
   }
 
-  b.throughput[pixel] = mul3(b.throughput[pixel], attenuation);
-  b.rays[pixel] = scattered;
-  b.rng[pixel] = rng;
+  b.throughput[path] = mul3(b.throughput[path], attenuation);
+  b.rays[path] = scattered;
+  b.rng[path] = rng;
 }
 
 // --- Finalize ---------------------------------------------------------------
@@ -420,18 +410,17 @@ cudaError_t launch_wavefront_accum_clear(WavefrontBuffers &b,
 }
 
 cudaError_t launch_wavefront_init(WavefrontBuffers &b, GpuCamera cam,
-                                  uint32_t seed, int sample_index,
-                                  cudaStream_t stream) {
+                                  uint32_t seed, cudaStream_t stream) {
   const int block = 256;
-  const int grid = (b.total_pixels + block - 1) / block;
-  wavefront_init_kernel<<<grid, block, 0, stream>>>(b, cam, seed, sample_index);
+  const int grid = (b.total_paths + block - 1) / block;
+  wavefront_init_kernel<<<grid, block, 0, stream>>>(b, cam, seed);
   return cudaGetLastError();
 }
 
 cudaError_t launch_wavefront_bounce(WavefrontBuffers &b, GpuScene scene,
                                     cudaStream_t stream) {
   const int block = 256;
-  const int grid = (b.total_pixels + block - 1) / block;
+  const int grid = (b.total_paths + block - 1) / block;
   wavefront_bounce_kernel<<<grid, block, 0, stream>>>(b, scene);
   return cudaGetLastError();
 }

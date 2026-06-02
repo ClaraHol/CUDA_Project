@@ -27,8 +27,7 @@ cudaError_t launch_wavefront_accum_clear(WavefrontBuffers &b,
                                          cudaStream_t stream);
 
 cudaError_t launch_wavefront_init(WavefrontBuffers &b, GpuCamera cam,
-                                  uint32_t seed, int sample_index,
-                                  cudaStream_t stream);
+                                  uint32_t seed, cudaStream_t stream);
 
 cudaError_t launch_wavefront_bounce(WavefrontBuffers &b, GpuScene scene,
                                     cudaStream_t stream);

@@ -177,7 +177,7 @@ SceneData setup_cover_scene(int samples) {
   SceneData s{};
   std::mt19937 rng(1337u);
   float aspect_ratio = 16.0f / 9.0f;
-  int max_depth = 2;
+  int max_depth = 4;
   float fov = 20.0f;
 
   // Determine the next material index before adding the material to the list.
