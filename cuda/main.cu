@@ -132,7 +132,7 @@ struct SceneData {
   std::vector<GpuMaterial> materials;
 };
 
-SceneData setup_simple_scene(int samples) {
+SceneData setup_simple_scene(int samples, int max_depth) {
   SceneData s{};
   s.materials.reserve(5);
 
@@ -159,7 +159,6 @@ SceneData setup_simple_scene(int samples) {
 
   int image_width = 400;
   float aspect_ratio = 16.0f / 9.0f;
-  int max_depth = 50;
   float vfov = 40.0f;
   float3 look_from = make_vec3(0.0f, 0.0f, 1.0f);
   float3 look_at = make_vec3(0.0f, 0.0f, -1.0f);
@@ -173,11 +172,10 @@ SceneData setup_simple_scene(int samples) {
   return s;
 }
 
-SceneData setup_cover_scene(int samples) {
+SceneData setup_cover_scene(int samples, int max_depth) {
   SceneData s{};
   std::mt19937 rng(1337u);
   float aspect_ratio = 16.0f / 9.0f;
-  int max_depth = 4;
   float fov = 20.0f;
 
   // Determine the next material index before adding the material to the list.
@@ -236,7 +234,7 @@ SceneData setup_cover_scene(int samples) {
   return s;
 }
 
-SceneData setup_spiral_shere(int samples) {
+SceneData setup_spiral_shere(int samples, int max_depth) {
   SceneData s{};
   std::mt19937 rng(1337u);
   float aspect_ratio = 16.0f / 9.0f;
@@ -336,7 +334,7 @@ SceneData setup_spiral_shere(int samples) {
   cout << "Number of scene objects: " << s.spheres.size() << "\n";
 
   // Set camera parameters
-  s.camera = build_camera(1200, aspect_ratio, samples, 10, 45.0f,
+  s.camera = build_camera(1200, aspect_ratio, samples, max_depth, 45.0f,
                           make_vec3(-21.5f, 45.0f, 21.5f), // from
                           make_vec3(0.0f, 15.0f, 0.0f),    // at
                           make_vec3(0.0f, 1.0f, 0.0f),     // up
@@ -349,7 +347,8 @@ SceneData setup_spiral_shere(int samples) {
 
 int main(int argc, char **argv) {
   std::string scene_name = "cover";
-  int samples = 10;
+  int samples = 50;
+  int max_depth = 4;
 
   if (argc >= 2) {
     scene_name = argv[1];
@@ -367,14 +366,27 @@ int main(int argc, char **argv) {
       return 1;
     }
   }
+  if (argc >= 4) {
+    try {
+      max_depth = std::stoi(argv[3]);
+      if (max_depth < 1) {
+        std::cerr << "max_depth must be >= 1\n";
+        return 1;
+      }
+    } catch (const std::exception &) {
+      std::cerr << "Invalid max_depth value: " << argv[3]
+                << " (must be integer)\n";
+      return 1;
+    }
+  }
 
   SceneData scene;
   if (scene_name == "cover") {
-    scene = setup_cover_scene(samples);
+    scene = setup_cover_scene(samples, max_depth);
   } else if (scene_name == "simple") {
-    scene = setup_simple_scene(samples);
+    scene = setup_simple_scene(samples, max_depth);
   } else if (scene_name == "spiral") {
-    scene = setup_spiral_shere(samples);
+    scene = setup_spiral_shere(samples, max_depth);
   } else {
     std::cerr << "Invalid scene: " << scene_name
               << " (use cover|simple|spiral)\n";
@@ -384,6 +396,7 @@ int main(int argc, char **argv) {
   // Print settings used for this particular run
   cout << "Scene: " << scene_name << "\n";
   cout << "Samples per pixel : " << samples << "\n";
+  cout << "Max depth : " << max_depth << "\n";
 
   double cuda_seconds = 0.0;
   std::string cuda_error;

@@ -33,6 +33,8 @@ ifneq ($(filter run,$(MAKECMDGOALS)),)
   ifneq ($(strip $(RUN_ARGS)),)
     FIRST_ARG := $(word 1,$(RUN_ARGS))
     SECOND_ARG := $(word 2,$(RUN_ARGS))
+    # Positional run args are forwarded as: scene, samples, max_depth.
+    MAX_DEPTH := $(word 3,$(RUN_ARGS))
 
     ifeq ($(FIRST_ARG),simple)
       SCENE := simple
@@ -64,7 +66,7 @@ ifneq ($(filter run,$(MAKECMDGOALS)),)
 endif
 
 run: $(CUDA_TARGET)
->./$(CUDA_TARGET) $(SCENE) $(SAMPLES)
+>./$(CUDA_TARGET) $(SCENE) $(SAMPLES) $(MAX_DEPTH)
 
 clean:
 >rm -rf $(BUILD_DIR) images/*_cuda.png
