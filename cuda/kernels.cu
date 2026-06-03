@@ -371,7 +371,6 @@ __global__ __launch_bounds__(256,
     atomicAdd(&b.accum[pixel].y, contrib.y);
     atomicAdd(&b.accum[pixel].z, contrib.z);
     b.active[path] = false;
-    b.rng[path] = rng;
     return;
   }
 
@@ -382,7 +381,6 @@ __global__ __launch_bounds__(256,
   // Pass only the two fields scatter actually reads (p and normal).
   if (!scatter(mat, rec.p, rec.normal, rng, attenuation, scattered)) {
     b.active[path] = false;
-    b.rng[path] = rng;
     return;
   }
 
