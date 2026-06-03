@@ -1,5 +1,6 @@
 17.3 2026
 The randomization was making the parallel version very slow.
+Recursion on GPU is BAD.
 
 
 # Timings:
@@ -23,6 +24,15 @@ Cuda speedup from OpenMP: 1.66x
 
  Average Cuda rendering time (10 runs): 83.4229 (Using fast math and doubles instead of floats)
 
+ Small world: Average Cuda rendering time (20 runs): 0.145682
+ Big world:  Average Cuda rendering time (20 runs): 15.9116
+
+
+Old random unit vector generator:
+4.63752
+
+Deterministic random unit vector generator:
+4.65406
 
  ## Timings using floats
 
@@ -30,5 +40,77 @@ Sequential time: 2226.3
 Parallel(72) time: 103.629
 
 Average Cuda rendering time (10 runs): 79.2154 (Using fast math and floats)
+
+Small world:   Average Cuda rendering time (20 runs): 0.0920586
+
+## BVH timings:
+Big image:
+Sequential time: 462.125
+Parallel(72) time:87.1068
+Parallel(72) writing time:0.121106
+
+# With optimizations
+Sequential time: 305.712
+
+Parallel(72) time:88.7103
+Average Cuda rendering time (20 runs): 1.53564
+
+speedup: 58x
+
+# Max depth test:
+Max depth: 2
+ Average Cuda rendering time (5 runs): 0.0545996
+Max depth: 5
+ Average Cuda rendering time (5 runs): 0.125044
+Max depth: 10
+ Average Cuda rendering time (5 runs): 0.178921
+Max depth: 15
+ Average Cuda rendering time (5 runs): 0.204897
+Max depth: 20
+ Average Cuda rendering time (5 runs): 0.219506
+Max depth: 30
+ Average Cuda rendering time (5 runs): 0.258839
+Max depth: 50
+ Average Cuda rendering time (5 runs): 0.333176
+Max depth: 70
+ Average Cuda rendering time (5 runs): 0.376747
+Max depth: 100
+ Average Cuda rendering time (5 runs): 0.428505
+
+
+## Wavefront sorted
+7 blocks:
+Average Cuda rendering time (10 runs): 0.56425
+
+6 blocks:
+Average Cuda rendering time (10 runs): 0.563052
+
+5 blocks:
+Average Cuda rendering time (10 runs): 0.566001
+
+## Wavefront queue
+# Max depth test:
+
+Max depth: 10
+ Average Cuda rendering time (1 runs): 385.902
+Max depth: 20
+ Average Cuda rendering time (1 runs): 449.761
+Max depth: 30
+ Average Cuda rendering time (1 runs): 490.644
+Max depth: 40
+ Average Cuda rendering time (1 runs): 526.678
+Max depth: 50
+ Average Cuda rendering time (1 runs): 559.113
+Max depth: 60
+ Average Cuda rendering time (1 runs): 590.007
+Max depth: 70
+ Average Cuda rendering time (1 runs): 618.398
+Max depth: 80
+ Average Cuda rendering time (1 runs): 646.948
+Max depth: 90
+ Average Cuda rendering time (1 runs): 673.466
+Max depth: 100
+ Average Cuda rendering time (1 runs): 699.148
+
 
 
