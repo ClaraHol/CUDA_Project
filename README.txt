@@ -8,9 +8,7 @@ This loads:
 
 Then build using:
 
-make (all)
-make cpu (cpu only)
-make cuda (cuda only)
+make
 
 Then run using the versatile make target with value-based argument parsing:
 
@@ -18,8 +16,8 @@ make run [args...]
 
 Arguments (order doesn't matter):
 - scene:  simple or cover (default: cover)
-- mode:   cpu, omp, cuda, or all (default: cuda)
-- samples: integer >= 1 for quality (default: 10)
+- samples: integer >= 1 for quality (default: 50)\
+- depth: integer >= 2 for quality (default: 4)\
 
 Examples:
 make run simple cuda 100           # Simple scene, CUDA, 100 samples
@@ -43,9 +41,9 @@ and use that to run NCU.
 
 source load_modules.sh
 mkdir -p $HOME/.tmp-ncu
-TMPDIR=$HOME/.tmp-ncu ncu ./build/raytrace cover 500 4
+TMPDIR=$HOME/.tmp-ncu ncu ./build/raytrace [args]
 
 To get an output file that can be viewed with Nsight Compute GUI:
 
 mkdir -p $HOME/.tmp-ncu
-TMPDIR=$HOME/.tmp-ncu ncu -o profile_test --page=details ./build/raytrace cover 500 4
+TMPDIR=$HOME/.tmp-ncu ncu -o profile_test --page=details ./build/raytrace [args]
